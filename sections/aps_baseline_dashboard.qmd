@@ -1,0 +1,1505 @@
+---
+title: APS Baseline
+author: ""
+date: today
+format:
+    dashboard:
+        logo: /assets/graphics/detect-logo.png
+        theme: simplex
+        orientation: columns
+---
+
+```{r}
+#| label: set up data and libraries
+#| echo: false
+
+library(dplyr)
+library(DT)
+library(duckdb)
+library(plotly)
+library(tidyr)
+
+# source the codebook
+source(here::here("r", "codebook.r"))
+
+DATA <- fs::as_fs_path(here::here("data", "aps_baseline", "APS-DATA.duckdb"))
+
+con <- dbConnect(duckdb(), dbdir = DATA, read_only = TRUE)
+```
+
+# {.sidebar}
+
+Dashboard last updated: {{< meta date >}}
+
+# Submission Details {orientation="rows"}
+
+```{r}
+#| label: submission value box data
+#| echo: false
+
+total_subs <- dbGetQuery(
+    con,
+    "SELECT 
+        COUNT(*) AS total_subs
+    FROM 'APS-BL';
+    "
+)
+
+total_sites <- dbGetQuery(
+    con,
+    "SELECT 
+        COUNT(DISTINCT ar_institution) as total_sites
+    FROM 'APS-BL';
+    "
+)
+
+total_champs <- dbGetQuery(
+    con,
+    "SELECT 
+        COUNT(DISTINCT ar_user) as total_champs
+    FROM 'APS-BL';
+    "
+)
+```
+
+## Row
+```{r}
+#| label: valuebox total submissions
+#| title: Total Submissions
+#| content: valuebox
+
+list(
+    icon = "file-check-fill",
+    color = "success",
+    value = total_subs$total_subs
+)
+```
+
+```{r}
+#| label: valuebox total sites
+#| title: Total Sites
+#| content: valuebox
+
+list(
+    icon = "hospital-fill",
+    color = "info",
+    value = total_sites$total_sites
+)
+```
+
+```{r}
+#| label: valuebox total site champions
+#| title: Total Site Champions
+#| content: valuebox
+
+list(
+    icon = "person-arms-up",
+    color = "warning",
+    value = total_champs$total_champs
+)
+```
+
+## Row
+
+```{r}
+#| label: bar plot subs by site
+#| echo: false
+#| fig-cap: Total Submissions by Institution and Site Champion
+
+# query the data
+subs_by_site <- as.data.frame(dbGetQuery(
+    con,
+    "SELECT COUNT(form_id) AS total_subs, ar_user AS site_champ, ar_institution AS institution FROM 'APS-BL' GROUP BY ar_user, ar_institution ORDER BY total_subs DESC;"
+))
+
+# replace uninformative columns with string names
+subs_by_site <- subs_by_site |>
+    left_join(user, by = "site_champ") |>
+    left_join(institution, by = "institution") |>
+    select(total_subs, site_champ_label, institution_label)
+
+chart_1 <- ggplot(
+    data = subs_by_site,
+    aes(x = total_subs, y = institution_label, fill = site_champ_label)
+) +
+    geom_col() +
+    theme(
+      legend.position = "none", 
+      legend.title = element_blank(),
+      axis.title.x = element_blank(),
+      axis.title.y = element_blank()
+    ) +
+    scale_fill_manual(values = colors_user)
+
+ggplotly(chart_1, tooltip = c("x", "fill"))
+```
+
+```{r}
+#| label: scatter plot subs by site over time
+#| echo: false
+#| fig-cap: Total Submissions by Institution over Time
+
+# query the data
+subs_over_time <- as.data.frame(dbGetQuery(
+    con,
+    "SELECT
+        form_id AS sub,
+        ar_institution AS institution,
+        ar_aps_report_date AS date,
+        COUNT(*) OVER (
+    ORDER BY
+        ar_aps_report_date
+        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    ) AS cum_submissions
+    FROM
+	    'APS-BL'
+    WHERE
+	    ar_aps_report_date IS NOT NULL
+    ORDER BY
+	    date
+    "
+))
+
+# replace uninformative columns with string names
+subs_over_time <- subs_over_time |>
+    left_join(institution, by = "institution") |>
+    select(sub, cum_submissions, date, institution_label)
+
+chart_2 <- ggplot(
+    data = subs_over_time,
+    aes(x = date, y = cum_submissions, color = institution_label)
+) +
+    geom_point() +
+    theme(
+      legend.position = "none", 
+      legend.title = element_blank(),
+      axis.title.x = element_blank(),
+      axis.title.y = element_blank()
+    ) +
+    scale_color_manual(values = colors_institution)
+
+ggplotly(chart_2)
+```
+
+# Randomization Details
+
+## Row {.tabset}
+
+```{r}
+#| label: randomized submissions value box data
+#| echo: false
+
+# total submissions by randomization status
+total_subs_by_rand_sql <- as.data.frame(dbGetQuery(
+    con,
+    "
+    SELECT clinician_id, COUNT(form_id) as num
+    FROM (
+        SELECT ar_clinician_bcm as clinician_id, form_id FROM 'APS-BL' WHERE ar_clinician_bcm IS NOT NULL
+        UNION ALL
+        SELECT ar_clinician_jh as clinician_id, form_id FROM 'APS-BL' WHERE ar_clinician_jh IS NOT NULL
+        UNION ALL
+        SELECT ar_clinician_ucsf as clinician_id, form_id FROM 'APS-BL' WHERE ar_clinician_ucsf IS NOT NULL
+        UNION ALL
+        SELECT ar_clinician_uab as clinician_id, form_id FROM 'APS-BL' WHERE ar_clinician_uab IS NOT NULL
+        UNION ALL
+        SELECT ar_clinician_utsw as clinician_id, form_id FROM 'APS-BL' WHERE ar_clinician_utsw IS NOT NULL
+        UNION ALL
+        SELECT ar_clinician_lbj as clinician_id, form_id FROM 'APS-BL' WHERE ar_clinician_lbj IS NOT NULL
+        UNION ALL
+        SELECT ar_clinician_utp as clinician_id, form_id FROM 'APS-BL' WHERE ar_clinician_utp IS NOT NULL
+    ) as combined
+    GROUP BY clinician_id;
+    "
+))
+
+all_clinicians <- rbind(
+    bcm_clinician,
+    jh_clinician,
+    ucsf_clinician,
+    uab_clinician,
+    utsw_clinician,
+    lbj_clinician,
+    utp_clinician
+)
+
+no_site_champs <- all_clinicians |>
+    filter(!clinician_name %in% user$site_champ_label[1:7])
+
+total_subs_by_rand <- total_subs_by_rand_sql |>
+    left_join(all_clinicians, by = "clinician_id") |>
+    select(num, clinician_name, clinician_randomized)
+
+total_subs_by_rand <- total_subs_by_rand |>
+    group_by(clinician_randomized) |>
+    summarise(num = sum(num))
+
+total_subs_by_rand_no_sc <- total_subs_by_rand_sql |>
+    left_join(no_site_champs, by = "clinician_id") |>
+    select(num, clinician_name, clinician_randomized)
+
+total_subs_by_rand_no_sc <- total_subs_by_rand_no_sc |>
+    group_by(clinician_randomized) |>
+    drop_na() |>
+    summarise(num = sum(num))
+```
+
+```{r}
+#| label: pre-launch randomized submissions value box data
+#| echo: false
+
+# pre-launch submission by randomization status
+pre_total_subs_by_rand_sql <- as.data.frame(dbGetQuery(
+    con,
+    "
+    SELECT clinician_id, COUNT(form_id) AS num
+    FROM (
+        SELECT ar_clinician_bcm AS clinician_id, form_id FROM 'APS-BL'
+        WHERE ar_clinician_bcm IS NOT NULL AND ar_aps_report_date < '2025-03-26'
+        UNION ALL
+
+        SELECT ar_clinician_jh AS clinician_id, form_id FROM 'APS-BL'
+        WHERE ar_clinician_jh IS NOT NULL AND ar_aps_report_date < '2025-04-04'
+        UNION ALL
+
+        SELECT ar_clinician_ucsf AS clinician_id, form_id FROM 'APS-BL'
+        WHERE ar_clinician_ucsf IS NOT NULL AND ar_aps_report_date < '2025-03-26'
+        UNION ALL
+
+        SELECT ar_clinician_uab AS clinician_id, form_id FROM 'APS-BL'
+        WHERE ar_clinician_uab IS NOT NULL AND ar_aps_report_date < '2025-03-18'
+        UNION ALL
+
+        SELECT ar_clinician_utsw AS clinician_id, form_id FROM 'APS-BL'
+        WHERE ar_clinician_utsw IS NOT NULL AND ar_aps_report_date < '2025-04-04'
+        UNION ALL
+
+        SELECT ar_clinician_lbj AS clinician_id, form_id FROM 'APS-BL'
+        WHERE ar_clinician_lbj IS NOT NULL AND ar_aps_report_date < '2025-03-26'
+        UNION ALL
+
+        SELECT ar_clinician_utp AS clinician_id, form_id FROM 'APS-BL'
+        WHERE ar_clinician_utp IS NOT NULL AND ar_aps_report_date < '2025-03-13'
+    ) AS combined
+    GROUP BY clinician_id;
+    "
+))
+
+pre_total_subs_by_rand <- pre_total_subs_by_rand_sql |>
+    left_join(all_clinicians, by = "clinician_id") |>
+    select(num, clinician_name, clinician_randomized)
+
+pre_total_subs_by_rand <- pre_total_subs_by_rand |>
+    group_by(clinician_randomized) |>
+    summarise(num = sum(num))
+
+pre_total_subs_by_rand_no_sc <- pre_total_subs_by_rand_sql |>
+    left_join(no_site_champs, by = "clinician_id") |>
+    select(num, clinician_name, clinician_randomized)
+
+pre_total_subs_by_rand_no_sc <- pre_total_subs_by_rand_no_sc |>
+    group_by(clinician_randomized) |>
+    drop_na() |>
+    summarise(num = sum(num))
+```
+
+```{r}
+#| label: post-launch randomized submissions value box data
+#| echo: false
+
+# post-launch submission by randomization status
+post_total_subs_by_rand_sql <- as.data.frame(dbGetQuery(
+    con,
+    "
+    SELECT clinician_id, COUNT(form_id) AS num
+    FROM (
+        SELECT ar_clinician_bcm AS clinician_id, form_id FROM 'APS-BL'
+        WHERE ar_clinician_bcm IS NOT NULL AND ar_aps_report_date >= '2025-03-26'
+        UNION ALL
+
+        SELECT ar_clinician_jh AS clinician_id, form_id FROM 'APS-BL'
+        WHERE ar_clinician_jh IS NOT NULL AND ar_aps_report_date >= '2025-04-04'
+        UNION ALL
+
+        SELECT ar_clinician_ucsf AS clinician_id, form_id FROM 'APS-BL'
+        WHERE ar_clinician_ucsf IS NOT NULL AND ar_aps_report_date >= '2025-03-26'
+        UNION ALL
+
+        SELECT ar_clinician_uab AS clinician_id, form_id FROM 'APS-BL'
+        WHERE ar_clinician_uab IS NOT NULL AND ar_aps_report_date >= '2025-03-18'
+        UNION ALL
+
+        SELECT ar_clinician_utsw AS clinician_id, form_id FROM 'APS-BL'
+        WHERE ar_clinician_utsw IS NOT NULL AND ar_aps_report_date >= '2025-04-04'
+        UNION ALL
+
+        SELECT ar_clinician_lbj AS clinician_id, form_id FROM 'APS-BL'
+        WHERE ar_clinician_lbj IS NOT NULL AND ar_aps_report_date >= '2025-03-26'
+        UNION ALL
+
+        SELECT ar_clinician_utp AS clinician_id, form_id FROM 'APS-BL'
+        WHERE ar_clinician_utp IS NOT NULL AND ar_aps_report_date >= '2025-03-13'
+    ) AS combined
+    GROUP BY clinician_id;
+    "
+))
+
+post_total_subs_by_rand <- post_total_subs_by_rand_sql |>
+    left_join(all_clinicians, by = "clinician_id") |>
+    select(num, clinician_name, clinician_randomized)
+
+post_total_subs_by_rand <- post_total_subs_by_rand |>
+    group_by(clinician_randomized) |>
+    summarise(num = sum(num))
+
+post_total_subs_by_rand_no_sc <- post_total_subs_by_rand_sql |>
+    left_join(no_site_champs, by = "clinician_id") |>
+    select(num, clinician_name, clinician_randomized)
+
+post_total_subs_by_rand_no_sc <- post_total_subs_by_rand_no_sc |>
+    group_by(clinician_randomized) |>
+    drop_na() |>
+    summarise(num = sum(num))
+```
+
+### Overall
+
+```{r}
+#| label: valuebox total submissions by randomized clinicians
+#| title: Total Submissions by Randomized Clinicians
+#| content: valuebox
+
+list(
+    icon = "clipboard-check-fill",
+    color = "success",
+    value = total_subs_by_rand[
+        total_subs_by_rand$clinician_randomized == 1,
+    ]$num
+)
+```
+
+```{r}
+#| label: valuebox total submissions by non-randomized clinicians
+#| title: Total Submissions by Non-Randomized Clinicians
+#| content: valuebox
+
+list(
+    icon = "clipboard-x-fill",
+    color = "danger",
+    value = total_subs_by_rand[
+        total_subs_by_rand$clinician_randomized == 0,
+    ]$num
+)
+```
+
+### Launch 
+
+#### Row {height="50%"}
+
+```{r}
+#| label: valuebox pre-launch total submissions by randomized clinicians
+#| content: valuebox
+
+list(
+    icon = "clipboard-check-fill",
+    color = "info",
+    title = "Pre-launch Total Submissions by Randomized Clinicians",
+    value = pre_total_subs_by_rand[
+        pre_total_subs_by_rand$clinician_randomized == 1,
+    ]$num
+)
+```
+
+```{r}
+#| label: valuebox pre-launch total submissions by non-randomized clinicians
+#| content: valuebox
+
+list(
+    icon = "clipboard-x-fill",
+    color = "info",
+    title = "Pre-launch Total Submissions by Non-Randomized Clinicians",
+    value = pre_total_subs_by_rand[
+        pre_total_subs_by_rand$clinician_randomized == 0,
+    ]$num
+)
+```
+
+```{r}
+#| label: valuebox post-launch total submissions by randomized clinicians
+#| content: valuebox
+
+list(
+    icon = "clipboard-check-fill",
+    color = "warning",
+    title = "Post-launch Total Submissions by Randomized Clinicians",
+    value = post_total_subs_by_rand[
+        post_total_subs_by_rand$clinician_randomized == 1,
+    ]$num
+)
+```
+
+```{r}
+#| label: valuebox post-launch total submissions by non-randomized clinicians
+#| content: valuebox
+
+value <- post_total_subs_by_rand[
+    post_total_subs_by_rand$clinician_randomized == 0,
+]$num
+
+if (identical(value, numeric(0))) {
+    value <- 0
+}
+
+list(
+    icon = "clipboard-x-fill",
+    color = "warning",
+    title = "Post-launch Total Submissions by Non-Randomized Clinicians",
+    value = value
+)
+```
+
+#### Row {height="50%"}
+
+```{r}
+#| label: valuebox pre-launch total submissions by randomized clinicians no site champs
+#| content: valuebox
+
+list(
+    icon = "clipboard-check-fill",
+    color = "info",
+    title = "Pre-launch Total Submissions by Randomized Clinicians (No Site Champions)",
+    value = pre_total_subs_by_rand_no_sc[
+        pre_total_subs_by_rand_no_sc$clinician_randomized == 1,
+    ]$num
+)
+```
+
+```{r}
+#| label: valuebox pre-launch total submissions by non-randomized clinicians no site champs
+#| content: valuebox
+
+list(
+    icon = "clipboard-x-fill",
+    color = "info",
+    title = "Pre-launch Total Submissions by Non-Randomized Clinicians (No Site Champions)",
+    value = pre_total_subs_by_rand_no_sc[
+        pre_total_subs_by_rand_no_sc$clinician_randomized == 0,
+    ]$num
+)
+```
+
+```{r}
+#| label: valuebox post-launch total submissions by randomized clinicians no site champs
+#| content: valuebox
+
+list(
+    icon = "clipboard-check-fill",
+    color = "warning",
+    title = "Post-launch Total Submissions by Randomized Clinicians (No Site Champions)",
+    value = post_total_subs_by_rand_no_sc[
+        post_total_subs_by_rand_no_sc$clinician_randomized == 1,
+    ]$num
+)
+```
+
+```{r}
+#| label: valuebox post-launch total submissions by non-randomized clinicians no site champs
+#| content: valuebox
+
+value <- post_total_subs_by_rand_no_sc[
+    post_total_subs_by_rand_no_sc$clinician_randomized == 0,
+]$num
+
+if (identical(value, numeric(0))) {
+    value <- 0
+}
+
+list(
+    icon = "clipboard-x-fill",
+    color = "warning",
+    title = "Post-launch Total Submissions by Non-Randomized Clinicians (No Site Champions)",
+    value = value
+)
+```
+
+### BCM
+
+```{r}
+#| label: bcm randomization plot
+#| echo: false
+#| fig-cap: BCM Submissions by Clinician and Randomization
+
+# query the data
+bcm_random_plot <- as.data.frame(dbGetQuery(
+    con,
+    "SELECT
+        COUNT(form_id) AS num,
+        ar_aps_report_date as date,
+        ar_clinician_bcm AS clinician_id
+    FROM 'APS-BL'
+    WHERE ar_institution == 1
+    GROUP BY clinician_id, date
+    ORDER BY date ASC;
+    "
+))
+
+bcm_random_plot <- bcm_random_plot |>
+    left_join(bcm_clinician, by = "clinician_id") |>
+    select(num, date, clinician_name, clinician_randomized)
+
+chart_10 <- ggplot(
+    data = bcm_random_plot,
+    aes(y = num, x = date)
+) +
+    geom_point(
+        aes(fill = clinician_randomized, color = clinician_name, size = 5),
+        position = "stack"
+    ) +
+    theme(
+      legend.position = "none", 
+      legend.title = element_blank(),
+      axis.title.x = element_blank(),
+      axis.title.y = element_blank()
+    ) +
+    geom_vline(
+        xintercept = as.numeric(as.Date("03/26/2025", format = "%m/%d/%Y")),
+        linetype = "dashed",
+        color = "darkblue"
+    ) +
+    scale_y_continuous(guide = guide_axis(minor.ticks = FALSE))
+
+ggplotly(chart_10, tooltip = c("x", "fill", "color"))
+```
+
+```{r}
+#| label: bcm randomization table
+#| echo: false
+#| tbl-cap: BCM Randomization
+
+bcm_random_plot <- as.data.frame(dbGetQuery(
+    con,
+    "SELECT
+        COUNT(form_id) AS num,
+        COUNT(form_id) / SUM(COUNT(form_id)) OVER() as perc,
+        ar_clinician_bcm AS clinician_id
+    FROM 'APS-BL'
+    WHERE ar_institution == 1
+    GROUP BY clinician_id
+    ORDER BY num ASC;
+    "
+))
+
+bcm_random_plot <- bcm_random_plot |>
+    left_join(bcm_clinician, by = "clinician_id") |>
+    select(num, perc, clinician_name, clinician_randomized)
+
+datatable(
+    bcm_random_plot,
+    colnames = c(
+        "Number of Submissions",
+        "Number of Submissions (%)",
+        "Clinician",
+        "Randomized"
+    )
+) |>
+    formatPercentage("perc", 2)
+```
+
+### JHU
+```{r}
+#| label: jhu randomization plot
+#| echo: false
+#| fig-cap: JHU Submissions by Clinician and Randomization
+
+# query the data
+jh_random_plot <- as.data.frame(dbGetQuery(
+    con,
+    "SELECT
+        COUNT(form_id) AS num,
+        ar_aps_report_date as date,
+        ar_clinician_jh AS clinician_id
+    FROM 'APS-BL'
+    WHERE ar_institution == 2
+    GROUP BY clinician_id, date
+    ORDER BY date ASC;
+    "
+))
+
+jh_random_plot <- jh_random_plot |>
+    left_join(jh_clinician, by = "clinician_id") |>
+    select(num, date, clinician_name, clinician_randomized)
+
+chart_11 <- ggplot(
+    data = jh_random_plot,
+    aes(y = num, x = date)
+) +
+    geom_point(
+        aes(fill = clinician_randomized, color = clinician_name, size = 5),
+        position = "stack"
+    ) +
+    theme(
+      legend.position = "none", 
+      legend.title = element_blank(),
+      axis.title.x = element_blank(),
+      axis.title.y = element_blank()
+    ) +
+    scale_y_continuous(guide = guide_axis(minor.ticks = FALSE))
+
+#TODO: NO VLINE YET SINCE TOOL HAS NOT LAUNCHED
+
+ggplotly(chart_11, tooltip = c("x", "fill", "color"))
+```
+
+```{r}
+#| label: jhu randomization table
+#| echo: false
+#| tbl-cap: JHU Randomization
+
+jh_random_plot <- as.data.frame(dbGetQuery(
+    con,
+    "SELECT
+        COUNT(form_id) AS num,
+        COUNT(form_id) / SUM(COUNT(form_id)) OVER() as perc,
+        ar_clinician_jh AS clinician_id
+    FROM 'APS-BL'
+    WHERE ar_institution == 2
+    GROUP BY clinician_id
+    ORDER BY num ASC;
+    "
+))
+
+jh_random_plot <- jh_random_plot |>
+    left_join(jh_clinician, by = "clinician_id") |>
+    select(num, perc, clinician_name, clinician_randomized)
+
+datatable(
+    jh_random_plot,
+    colnames = c(
+        "Number of Submissions",
+        "Number of Submissions (%)",
+        "Clinician",
+        "Randomized"
+    )
+) |>
+    formatPercentage("perc", 2)
+```
+
+### UCSF
+
+```{r}
+#| label: ucsf randomization plot
+#| echo: false
+#| fig-cap: UCSF Submissions by Clinician and Randomization
+
+# query the data
+ucsf_random_plot <- as.data.frame(dbGetQuery(
+    con,
+    "SELECT
+        COUNT(form_id) AS num,
+        ar_aps_report_date as date,
+        ar_clinician_ucsf AS clinician_id
+    FROM 'APS-BL'
+    WHERE ar_institution == 3
+    GROUP BY clinician_id, date
+    ORDER BY date ASC;
+    "
+))
+
+ucsf_random_plot <- ucsf_random_plot |>
+    left_join(ucsf_clinician, by = "clinician_id") |>
+    select(num, date, clinician_name, clinician_randomized)
+
+chart_12 <- ggplot(
+    data = ucsf_random_plot,
+    aes(y = num, x = date)
+) +
+    geom_point(
+        aes(fill = clinician_randomized, color = clinician_name, size = 5),
+        position = position_dodge2(width = 10, preserve = "total")
+    ) +
+    theme(
+      legend.position = "none", 
+      legend.title = element_blank(),
+      axis.title.x = element_blank(),
+      axis.title.y = element_blank()
+    ) +
+    geom_vline(
+        xintercept = as.numeric(as.Date("04/21/2025", format = "%m/%d/%Y")),
+        linetype = "dashed",
+        color = "darkblue"
+    ) +
+    scale_y_continuous(guide = guide_axis(minor.ticks = FALSE))
+
+ggplotly(chart_12, tooltip = c("x", "fill", "color"))
+```
+
+```{r}
+#| label: ucsf randomization table
+#| echo: false
+#| tbl-cap: UCSF Randomization
+
+ucsf_random_plot <- as.data.frame(dbGetQuery(
+    con,
+    "SELECT
+        COUNT(form_id) AS num,
+        COUNT(form_id) / SUM(COUNT(form_id)) OVER() as perc,
+        ar_clinician_ucsf AS clinician_id
+    FROM 'APS-BL'
+    WHERE ar_institution == 3
+    GROUP BY clinician_id
+    ORDER BY num ASC;
+    "
+))
+
+ucsf_random_plot <- ucsf_random_plot |>
+    left_join(ucsf_clinician, by = "clinician_id") |>
+    select(num, perc, clinician_name, clinician_randomized)
+
+datatable(
+    ucsf_random_plot,
+    colnames = c(
+        "Number of Submissions",
+        "Number of Submissions (%)",
+        "Clinician",
+        "Randomized"
+    )
+) |>
+    formatPercentage("perc", 2)
+```
+
+### UAB
+
+```{r}
+#| label: uab randomization plot
+#| echo: false
+#| fig-cap: UAB Submissions by Clinician and Randomization
+
+# query the data
+uab_random_plot <- as.data.frame(dbGetQuery(
+    con,
+    "SELECT
+        COUNT(form_id) AS num,
+        ar_aps_report_date as date,
+        ar_clinician_uab AS clinician_id
+    FROM 'APS-BL'
+    WHERE ar_institution == 4
+    GROUP BY clinician_id, date
+    ORDER BY date ASC;
+    "
+))
+
+uab_random_plot <- uab_random_plot |>
+    left_join(uab_clinician, by = "clinician_id") |>
+    select(num, date, clinician_name, clinician_randomized)
+
+chart_12 <- ggplot(
+    data = uab_random_plot,
+    aes(y = num, x = date)
+) +
+    geom_point(
+        aes(fill = clinician_randomized, color = clinician_name, size = 5),
+        position = position_dodge2(width = 10, preserve = "total")
+    ) +
+    theme(
+      legend.position = "none", 
+      legend.title = element_blank(),
+      axis.title.x = element_blank(),
+      axis.title.y = element_blank()
+    ) +
+    geom_vline(
+        xintercept = as.numeric(as.Date("03/18/2025", format = "%m/%d/%Y")),
+        linetype = "dashed",
+        color = "darkblue"
+    ) +
+    scale_y_continuous(guide = guide_axis(minor.ticks = FALSE))
+
+ggplotly(chart_12, tooltip = c("x", "fill", "color"))
+```
+
+```{r}
+#| label: uab randomization table
+#| echo: false
+#| tbl-cap: UAB Randomization
+
+uab_random_plot <- as.data.frame(dbGetQuery(
+    con,
+    "SELECT
+        COUNT(form_id) AS num,
+        COUNT(form_id) / SUM(COUNT(form_id)) OVER() as perc,
+        ar_clinician_uab AS clinician_id
+    FROM 'APS-BL'
+    WHERE ar_institution == 4
+    GROUP BY clinician_id
+    ORDER BY num ASC;
+    "
+))
+
+uab_random_plot <- uab_random_plot |>
+    left_join(uab_clinician, by = "clinician_id") |>
+    select(num, perc, clinician_name, clinician_randomized)
+
+datatable(
+    uab_random_plot,
+    colnames = c(
+        "Number of Submissions",
+        "Number of Submissions (%)",
+        "Clinician",
+        "Randomized"
+    )
+) |>
+    formatPercentage("perc", 2)
+```
+
+### UTSW
+
+```{r}
+#| label: utsw randomization plot
+#| echo: false
+#| fig-cap: UTSW Submissions by Clinician and Randomization
+
+# query the data
+utsw_random_plot <- as.data.frame(dbGetQuery(
+    con,
+    "SELECT
+        COUNT(form_id) AS num,
+        ar_aps_report_date as date,
+        ar_clinician_utsw AS clinician_id
+    FROM 'APS-BL'
+    WHERE ar_institution == 5
+    GROUP BY clinician_id, date
+    ORDER BY date ASC;
+    "
+))
+
+utsw_random_plot <- utsw_random_plot |>
+    left_join(utsw_clinician, by = "clinician_id") |>
+    select(num, date, clinician_name, clinician_randomized)
+
+chart_12 <- ggplot(
+    data = utsw_random_plot,
+    aes(y = num, x = date)
+) +
+    geom_point(
+        aes(fill = clinician_randomized, color = clinician_name, size = 5),
+        position = position_dodge2(width = 10, preserve = "total")
+    ) +
+    theme(
+      legend.position = "none", 
+      legend.title = element_blank(),
+      axis.title.x = element_blank(),
+      axis.title.y = element_blank()
+    ) +
+    geom_vline(
+        xintercept = as.numeric(as.Date("04/04/2025", format = "%m/%d/%Y")),
+        linetype = "dashed",
+        color = "darkblue"
+    ) +
+    scale_y_continuous(guide = guide_axis(minor.ticks = FALSE))
+
+ggplotly(chart_12, tooltip = c("x", "fill", "color"))
+```
+
+```{r}
+#| label: utsw randomization table
+#| echo: false
+#| tbl-cap: utsw Randomization
+
+utsw_random_plot <- as.data.frame(dbGetQuery(
+    con,
+    "SELECT
+        COUNT(form_id) AS num,
+        COUNT(form_id) / SUM(COUNT(form_id)) OVER() as perc,
+        ar_clinician_utsw AS clinician_id
+    FROM 'APS-BL'
+    WHERE ar_institution == 5
+    GROUP BY clinician_id
+    ORDER BY num ASC;
+    "
+))
+
+utsw_random_plot <- utsw_random_plot |>
+    left_join(utsw_clinician, by = "clinician_id") |>
+    select(num, perc, clinician_name, clinician_randomized)
+
+datatable(
+    utsw_random_plot,
+    colnames = c(
+        "Number of Submissions",
+        "Number of Submissions (%)",
+        "Clinician",
+        "Randomized"
+    )
+) |>
+    formatPercentage("perc", 2)
+```
+
+### UTH LBJ
+
+```{r}
+#| label: lbj randomization plot
+#| echo: false
+#| fig-cap: UTH Houston LBJ Submissions by Clinician and Randomization
+
+# query the data
+lbj_random_plot <- as.data.frame(dbGetQuery(
+    con,
+    "SELECT
+        COUNT(form_id) AS num,
+        ar_aps_report_date as date,
+        ar_clinician_lbj AS clinician_id
+    FROM 'APS-BL'
+    WHERE ar_institution == 6
+    GROUP BY clinician_id, date
+    ORDER BY date ASC;
+    "
+))
+
+lbj_random_plot <- lbj_random_plot |>
+    left_join(lbj_clinician, by = "clinician_id") |>
+    select(num, date, clinician_name, clinician_randomized)
+
+chart_12 <- ggplot(
+    data = lbj_random_plot,
+    aes(y = num, x = date)
+) +
+    geom_point(
+        aes(fill = clinician_randomized, color = clinician_name, size = 5),
+        position = position_dodge2(width = 10, preserve = "total")
+    ) +
+    theme(
+      legend.position = "none", 
+      legend.title = element_blank(),
+      axis.title.x = element_blank(),
+      axis.title.y = element_blank()
+    ) +
+    geom_vline(
+        xintercept = as.numeric(as.Date("03/26/2025", format = "%m/%d/%Y")),
+        linetype = "dashed",
+        color = "darkblue"
+    ) +
+    scale_y_continuous(guide = guide_axis(minor.ticks = FALSE))
+
+ggplotly(chart_12, tooltip = c("x", "fill", "color"))
+```
+
+```{r}
+#| label: lbj randomization table
+#| echo: false
+#| tbl-cap: lbj Randomization
+
+lbj_random_plot <- as.data.frame(dbGetQuery(
+    con,
+    "SELECT
+        COUNT(form_id) AS num,
+        COUNT(form_id) / SUM(COUNT(form_id)) OVER() as perc,
+        ar_clinician_lbj AS clinician_id
+    FROM 'APS-BL'
+    WHERE ar_institution == 6
+    GROUP BY clinician_id
+    ORDER BY num ASC;
+    "
+))
+
+lbj_random_plot <- lbj_random_plot |>
+    left_join(lbj_clinician, by = "clinician_id") |>
+    select(num, perc, clinician_name, clinician_randomized)
+
+datatable(
+    lbj_random_plot,
+    colnames = c(
+        "Number of Submissions",
+        "Number of Submissions (%)",
+        "Clinician",
+        "Randomized"
+    )
+) |>
+    formatPercentage("perc", 2)
+```
+
+### UTH UTP
+
+```{r}
+#| label: utp randomization plot
+#| echo: false
+#| fig-cap: UTH Houston UT Physicians Submissions by Clinician and Randomization
+
+# query the data
+utp_random_plot <- as.data.frame(dbGetQuery(
+    con,
+    "SELECT
+        COUNT(form_id) AS num,
+        ar_aps_report_date as date,
+        ar_clinician_utp AS clinician_id
+    FROM 'APS-BL'
+    WHERE ar_institution == 7
+    GROUP BY clinician_id, date
+    ORDER BY date ASC;
+    "
+))
+
+utp_random_plot <- utp_random_plot |>
+    left_join(utp_clinician, by = "clinician_id") |>
+    select(num, date, clinician_name, clinician_randomized)
+
+chart_12 <- ggplot(
+    data = utp_random_plot,
+    aes(y = num, x = date)
+) +
+    geom_point(
+        aes(fill = clinician_randomized, color = clinician_name, size = 5),
+        position = position_dodge2(width = 10, preserve = "total")
+    ) +
+    theme(
+      legend.position = "none", 
+      legend.title = element_blank(),
+      axis.title.x = element_blank(),
+      axis.title.y = element_blank()
+    ) +
+    geom_vline(
+        xintercept = as.numeric(as.Date("03/13/2025", format = "%m/%d/%Y")),
+        linetype = "dashed",
+        color = "darkblue"
+    ) +
+    scale_y_continuous(guide = guide_axis(minor.ticks = FALSE))
+
+ggplotly(chart_12, tooltip = c("x", "fill"))
+```
+
+```{r}
+#| label: utp randomization table
+#| echo: false
+#| tbl-cap: utp Randomization
+
+utp_random_plot <- as.data.frame(dbGetQuery(
+    con,
+    "SELECT
+        COUNT(form_id) AS num,
+        COUNT(form_id) / SUM(COUNT(form_id)) OVER() as perc,
+        ar_clinician_utp AS clinician_id
+    FROM 'APS-BL'
+    WHERE ar_institution == 7
+    GROUP BY clinician_id
+    ORDER BY num ASC;
+    "
+))
+
+utp_random_plot <- utp_random_plot |>
+    left_join(utp_clinician, by = "clinician_id") |>
+    select(num, perc, clinician_name, clinician_randomized)
+
+datatable(
+    utp_random_plot,
+    colnames = c(
+        "Number of Submissions",
+        "Number of Submissions (%)",
+        "Clinician",
+        "Randomized"
+    )
+) |>
+    formatPercentage("perc", 2)
+```
+
+# Demographics {orientation="rows"}
+
+## Row {.tabset}
+
+### Gender
+
+```{r}
+#| label: gender plot
+#| echo: false
+#| fig-cap: Gender
+
+# query the data
+gender_plot <- as.data.frame(dbGetQuery(
+    con,
+    "SELECT
+        COUNT(form_id) AS num,
+        COUNT(form_id) / SUM(COUNT(form_id)) OVER() as perc,
+        ar_sex AS gender
+    FROM 'APS-BL'
+    GROUP BY gender
+    ORDER BY gender ASC;
+    "
+))
+
+# replace uninformative columns with string names
+gender_plot <- gender_plot |>
+    left_join(gender, by = "gender") |>
+    select(num, perc, gender_label)
+
+chart_3 <- ggplot(
+    data = gender_plot,
+    aes(y = gender_label, x = num)
+) +
+    geom_col(aes(fill = gender_label)) +
+    theme(
+      legend.position = "none", 
+      legend.title = element_blank(),
+      axis.title.x = element_blank(),
+      axis.title.y = element_blank()
+    ) +
+    scale_fill_brewer(palette = "Dark2", na.value = "grey50")
+
+
+ggplotly(chart_3, tooltip = c("x"))
+```
+
+```{r}
+#| label: gender table
+#| echo: false
+#| tbl-cap: Gender
+
+datatable(gender_plot, colnames = c("Number", "Number (%)", "Gender")) |>
+    formatPercentage("perc", 2)
+```
+
+### Relationship Status
+```{r}
+#| label: relationship status plot
+#| echo: false
+#| fig-cap: Relationship Status
+
+# query the data
+rel_plot <- as.data.frame(dbGetQuery(
+    con,
+    "SELECT
+        COUNT(form_id) AS num,
+        COUNT(form_id) / SUM(COUNT(form_id)) OVER() as perc,
+        ar_relationship AS rel_status
+    FROM 'APS-BL'
+    GROUP BY rel_status
+    ORDER BY rel_status ASC;
+    "
+))
+
+# replace uninformative columns with string names
+rel_plot <- rel_plot |>
+    left_join(rel_status, by = "rel_status") |>
+    select(num, perc, rel_status_label)
+
+chart_4 <- ggplot(
+    data = rel_plot,
+    aes(y = rel_status_label, x = num)
+) +
+    geom_col(aes(fill = rel_status_label)) +
+    theme(
+      legend.position = "none", 
+      legend.title = element_blank(),
+      axis.title.x = element_blank(),
+      axis.title.y = element_blank()
+    ) +
+    scale_fill_brewer(palette = "Dark2", na.value = "grey50")
+
+
+ggplotly(chart_4, tooltip = c("x"))
+```
+
+```{r}
+#| label: relationship status table
+#| echo: false
+#| tbl-cap: Relationship Status
+
+datatable(
+    rel_plot,
+    colnames = c("Number", "Number (%)", "Relationship Status")
+) |>
+    formatPercentage("perc", 2)
+```
+
+### Race
+
+```{r}
+#| label: race plot
+#| echo: false
+#| fig-cap: Race
+
+# query the data
+race_plot <- as.data.frame(dbGetQuery(
+    con,
+    "
+    SELECT 
+        COUNT(form_id) AS num,
+        COUNT(form_id) / SUM(COUNT(form_id)) OVER() as perc,
+        CASE 
+        WHEN ar_race___1 = 1 THEN 1
+        WHEN ar_race___2 = 1 THEN 2
+        WHEN ar_race___3 = 1 THEN 3
+        WHEN ar_race___4 = 1 THEN 4
+        WHEN ar_race___5 = 1 THEN 5
+        WHEN ar_race___98 = 1 THEN 98
+        END AS race
+    FROM 'APS-BL'
+    GROUP BY race
+    ORDER BY race ASC;
+    "
+))
+
+# replace uninformative columns with string names
+race_plot <- race_plot |>
+    left_join(race, by = "race") |>
+    select(num, perc, race_label)
+
+chart_5 <- ggplot(
+    data = race_plot,
+    aes(y = race_label, x = num)
+) +
+    geom_col(aes(fill = race_label)) +
+    theme(
+      legend.position = "none", 
+      legend.title = element_blank(),
+      axis.title.x = element_blank(),
+      axis.title.y = element_blank()
+    ) +
+    scale_fill_brewer(palette = "Dark2", na.value = "grey50")
+
+
+ggplotly(chart_5, tooltip = c("x"))
+```
+
+```{r}
+#| label: race table
+#| echo: false
+#| tbl-cap: Race
+
+datatable(race_plot, colnames = c("Number", "Number (%)", "Race")) |>
+    formatPercentage("perc", 2)
+```
+
+### Ethnicity
+```{r}
+#| label: hispanic plot
+#| echo: false
+#| fig-cap: Hispanic
+
+# query the data
+hispanic_plot <- as.data.frame(dbGetQuery(
+    con,
+    "SELECT
+        COUNT(form_id) AS num,
+        COUNT(form_id) / SUM(COUNT(form_id)) OVER() as perc,
+        ar_hispanic AS hispanic
+    FROM 'APS-BL'
+    GROUP BY hispanic
+    ORDER BY hispanic ASC;
+    "
+))
+
+# replace uninformative columns with string names
+hispanic_plot <- hispanic_plot |>
+    left_join(hispanic, by = "hispanic") |>
+    select(num, perc, hispanic_label)
+
+chart_6 <- ggplot(
+    data = hispanic_plot,
+    aes(y = hispanic_label, x = num)
+) +
+    geom_col(aes(fill = hispanic_label)) +
+    theme(
+      legend.position = "none", 
+      legend.title = element_blank(),
+      axis.title.x = element_blank(),
+      axis.title.y = element_blank()
+    ) +
+    scale_fill_brewer(palette = "Dark2", na.value = "grey50")
+
+
+ggplotly(chart_6, tooltip = c("x"))
+```
+
+```{r}
+#| label: hispanic table
+#| echo: false
+#| tbl-cap: Ethnicity
+
+datatable(hispanic_plot, colnames = c("Number", "Number (%)", "Hispanic")) |>
+    formatPercentage("perc", 2)
+```
+
+# Clinical {orientation="rows"}
+
+## Row {.tabset}
+
+### Visit Reason
+
+```{r}
+#| label: visit reason plot
+#| echo: false
+#| fig-cap: Reason for Visit
+
+# query the data
+reason_plot <- as.data.frame(dbGetQuery(
+    con,
+    "
+    SELECT
+        COUNT(form_id) as num_visits,
+        COUNT(form_id) / SUM(COUNT(form_id)) OVER() as perc,
+        ar_visit_reason as reason
+    FROM 'APS-BL'
+    GROUP BY reason
+    ORDER BY num_visits ASC;
+    "
+))
+
+# replace uninformative columns with string names
+reason_plot <- reason_plot |>
+    left_join(reason, by = "reason") |>
+    select(num_visits, perc, reason_label)
+
+chart_7 <- ggplot(
+    data = reason_plot,
+    aes(x = num_visits, y = reason_label)
+) +
+    geom_col(aes(fill = reason_label)) +
+    theme(
+      legend.position = "none", 
+      legend.title = element_blank(),
+      axis.title.x = element_blank(),
+      axis.title.y = element_blank()
+    ) +
+    scale_fill_brewer(palette = "Dark2", na.value = "grey50")
+
+ggplotly(chart_7, tooltip = c("x"))
+```
+
+```{r}
+#| label: visit reason table
+#| echo: false
+#| tbl-cap: Reason for Visit
+
+datatable(
+    reason_plot,
+    colnames = c("Number", "Number (%)", "Reason for Visit")
+) |>
+    formatPercentage("perc", 2)
+```
+
+### Cognitive Impairment
+
+```{r}
+#| label: cognitive impairment plot
+#| echo: false
+#| fig-cap: Cognitive Impairment
+
+# query the data
+cog_imp_plot <- as.data.frame(dbGetQuery(
+    con,
+    "
+    SELECT
+        COUNT(form_id) as num,
+        COUNT(form_id) / SUM(COUNT(form_id)) OVER() as perc,
+        CASE
+        WHEN ar_dx_mci_dementia___0 = 1 THEN 0
+        WHEN ar_dx_mci_dementia___1 = 1 THEN 1
+        WHEN ar_dx_mci_dementia___2 = 1 THEN 2
+        WHEN ar_dx_mci_dementia___77 = 1 THEN 77
+        ELSE 'Unknown'
+        END as cog_imp
+    FROM 'APS-BL'
+    GROUP BY cog_imp
+    ORDER BY num ASC;
+    "
+))
+
+# replace uninformative columns with string names
+cog_imp_plot <- cog_imp_plot |>
+    left_join(cog_imp, by = "cog_imp") |>
+    select(num, perc, cog_imp_label)
+
+chart_8 <- ggplot(
+    data = cog_imp_plot,
+    aes(x = num, y = cog_imp_label)
+) +
+    geom_col(aes(fill = cog_imp_label)) +
+    theme(
+      legend.position = "none", 
+      legend.title = element_blank(),
+      axis.title.x = element_blank(),
+      axis.title.y = element_blank()
+    ) +
+    scale_fill_brewer(palette = "Dark2", na.value = "grey50")
+
+ggplotly(chart_8, tooltip = c("x"))
+```
+
+```{r}
+#| label: cognitive impairment table
+#| echo: false
+#| tbl-cap: Cognitive Impairment
+
+datatable(
+    cog_imp_plot,
+    colnames = c("Number", "Number (%)", "Cognitive Impairment Diagnosis")
+) |>
+    formatPercentage("perc", 2)
+```
+
+### Functional Status
+
+```{r}
+#| label: functional status plot
+#| echo: false
+#| fig-cap: Functional Status
+
+# query the data
+func_status_plot <- as.data.frame(dbGetQuery(
+    con,
+    "
+    SELECT
+        COUNT(form_id) as num,
+        COUNT(form_id) / SUM(COUNT(form_id)) OVER() as perc,
+        CASE
+        WHEN ar_functional_status___1 = 1 THEN 1
+        WHEN ar_functional_status___2 = 1 THEN 2
+        WHEN ar_functional_status___3 = 1 THEN 3
+        WHEN ar_functional_status___4 = 1 THEN 4
+        WHEN ar_functional_status___5 = 1 THEN 5
+        WHEN ar_functional_status___98 =  1 THEN 98
+        WHEN ar_functional_status___77 = 1 THEN 77
+        ELSE NULL
+        END as func_status
+    FROM 'APS-BL'
+    GROUP BY func_status
+    ORDER BY num ASC;
+    "
+))
+
+# replace uninformative columns with string names
+func_status_plot <- func_status_plot |>
+    left_join(func_status, by = "func_status") |>
+    select(num, perc, func_status_label)
+
+chart_9 <- ggplot(
+    data = func_status_plot,
+    aes(x = num, y = func_status_label)
+) +
+    geom_col(aes(fill = func_status_label)) +
+    theme(
+      legend.position = "none", 
+      legend.title = element_blank(),
+      axis.title.x = element_blank(),
+      axis.title.y = element_blank()
+    ) +
+    scale_fill_brewer(palette = "Dark2", na.value = "grey50")
+
+ggplotly(chart_9, tooltip = c("x"))
+```
+
+```{r}
+#| label: functional status table
+#| echo: false
+#| tbl-cap: functional status
+
+datatable(
+    func_status_plot,
+    colnames = c("Number", "Number (%)", "Functional Status")
+) |>
+    formatPercentage("perc", 2)
+```
+
+```{r}
+#| label: close db connection
+#| echo: false
+
+dbDisconnect(con, shutdown = TRUE)
+```

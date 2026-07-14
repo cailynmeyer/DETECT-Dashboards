@@ -1,0 +1,36 @@
+project:
+  type: website
+  # Select the files to render when we run quarto render or quarto publish
+  render:
+    - index.qmd
+    - sections/detect_tool_dashboard.qmd
+    - sections/aps_baseline_dashboard.qmd
+
+website:
+  title: "DETECT Dashboards"
+  navbar:
+    search: true
+    logo: graphics/detect_logo.png
+    left:
+      - text: "Overview"
+        href: index.qmd
+      - text: "Dashboards"
+        menu:
+          #- sections/recruitment_and_scheduling_tracker.qmd
+          #- sections/clinician_screening_completion_tracker.qmd
+          - sections/detect_tool_dashboard.qmd
+          # NOT IN USE - archived to _archive/sections/detect_tool_pilot_dashboard.qmd
+          # - sections/detect_tool_pilot_dashboard.qmd
+          - text: APS Baseline Dashboard
+            href: sections/aps_baseline_dashboard.qmd
+
+
+format:
+  html:
+    page-layout: full
+    theme: 
+    - cosmo
+    - assets/custom_style.css # custom formatting for value boxes
+    css: assets/custom_style.css # custom formatting for value boxes
+    toc: true
+
