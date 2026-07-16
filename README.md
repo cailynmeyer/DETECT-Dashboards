@@ -185,7 +185,7 @@ git push
 
 ## Development Workflow
 
-###Branching
+### Branching
 Use feature branches for developing dashboards:
 
 ```shell
