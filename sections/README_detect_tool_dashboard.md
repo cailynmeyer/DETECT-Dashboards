@@ -36,7 +36,16 @@ Both keys are required to refresh this dashboard. See [main README → API Keys]
 
 ## Dashboard-Specific Setup
 
-1. Ensure `detect_tool_redcap_api` and `detect_tool_go_uth_api` are in your keyring (see [main README → API Keys](../README.md#api-keys))..
+1. Ensure `detect_tool_redcap_api` and `detect_tool_go_uth_api` are in your keyring (see [main README → API Keys](../README.md#api-keys)).
 2. Refresh the prepped data by running the prep documents in order:
    - `data_management/detect_tool/data_01_detect_tool.qmd` — pulls raw REDCap + GO UTHealth data and cleans it.
    - `data_management/detect_tool/data_02_detect_tool.qmd` — further preparation for dashboard summaries.
+  
+  In the terminal: 
+  
+  ```shell
+  cd data_management
+  quarto render data_01_detect_tool.qmd
+  quarto render data_02_detect_tool.qmd
+  ```
+3. Continue with building and publishing the full dashboard. See [main README → API Keys](../README.md#api-keys).
