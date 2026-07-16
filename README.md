@@ -12,7 +12,7 @@ Welcome to the DETECT-RPC Dashboard project! This is the shared documentation fo
 
 ## Table of Contents
 
-1. [Overview of the Study](#overview-of-the-study)
+1. [Overview](#overview)
 2. [Dashboards](#dashboards)
 3. [Prerequisites](#prerequisites)
 4. [Installation](#installation)
@@ -24,23 +24,24 @@ Welcome to the DETECT-RPC Dashboard project! This is the shared documentation fo
 10. [Repository Structure](#repository-structure)
 
 ---
+## Overview
 
-## Overview of the Study
+The repository maintains and publishes the two current dashboards: R33 and APS Baseline 
 
-The primary objective of the study is to evaluate whether the use of the DETECT-RPC screening tool increases the average reporting of elder mistreatment (EM) by HBPC clinicians relative to a baseline period where they did not use the DETECT-RPC screening tool.
-
-The R33 phase is divided into two parts:
-
-1. **Universal EM Screening (RCT)** — randomize ~43 home-based primary care clinicians to either use the adapted DETECT screening tool at every qualified patient encounter (experimental) or continue standard care (control).
-2. **Caregiver Dyad Follow-Up Interviews** — recruit a purposive sample of 180 caregiving dyads (family caregiver + care recipient), half living with Alzheimer's Disease or Related Dementias (ADRD).
-
-This repository contains the code used to create the dashboards that track the progress of the study, including baseline APS (Adult Protective Services) reporting activity.
+### R33 Dashboard 
+Evaluates the effect of the DETECT-RPC screening tool on elder mistreatment (EM) reporting rates. 
+Divided into two parts:
+  - Universal EM Screening (RCT)
+  - Caregiver Dyad Follow-Up Interviews
+  
+### APS Dashboard 
+Monitors APS Baseline data submissions
 
 ---
 
 ## Dashboards
 
-The site is a multi-page Quarto **website**: `index.qmd` is the landing/overview page, and each dashboard is a page under `sections/`. Which pages are actually built is controlled by the `render:` list in [`_quarto.yml`](_quarto.yml).
+The site is a multi-page Quarto **website**: `index.qmd` is the landing/overview page, and each dashboard is a page under `sections/`. Which pages are actively built is controlled by the `render:` list in [`_quarto.yml`](_quarto.yml).
 
 **Currently published** (in the `render:` list and navbar):
 
@@ -49,7 +50,7 @@ The site is a multi-page Quarto **website**: `index.qmd` is the landing/overview
 | DETECT Tool | `sections/detect_tool_dashboard.qmd` | [README](sections/README_detect_tool_dashboard.md) |
 | APS Baseline | `sections/aps_baseline_dashboard.qmd` | [README](sections/README_aps_baseline_dashboard.md) |
 
-**Present but not currently published** (in `sections/` but not in the `render:` list): `clinician_screening_completion_tracker.qmd`, `recruitment_and_scheduling_tracker.qmd`, `screening_tool_dashboard.qmd`. Add them to `render:` and the navbar in `_quarto.yml` to publish them.
+**Inactive and not currently published** (in `sections/` but not in the `render:` list): `clinician_screening_completion_tracker.qmd`, `recruitment_and_scheduling_tracker.qmd`, `screening_tool_dashboard.qmd`. Add them to `render:` and the navbar in `_quarto.yml` to publish them.
 
 Read the per-dashboard READMEs for goals, data sources, styling, and any dashboard-specific setup that differs from the shared steps below.
 
@@ -68,14 +69,6 @@ Read the per-dashboard READMEs for goals, data sources, styling, and any dashboa
 * [Quarto](https://quarto.org/docs/get-started/) (version 1.7.\*)
 * [Git](https://git-scm.com/downloads) (latest version)
 
-Verify installations:
-
-```shell
-R --version
-quarto --version
-git --version
-```
-
 ---
 
 ## Installation
@@ -84,6 +77,14 @@ git --version
 2. **Install an IDE** — RStudio or Positron from [Posit](https://posit.co/).
 3. **Install Quarto** from [Quarto](https://quarto.org/docs/get-started/).
 4. **Install Git** from [git-scm.com](https://git-scm.com/downloads).
+
+Verify installations by checking versions in the terminal:
+
+```shell
+R --version
+quarto --version
+git --version
+```
 
 ---
 
@@ -101,7 +102,7 @@ cd DETECT
 
 ### Step 2: Open in the IDE
 
-Open the project folder in RStudio or Positron. The `.here` file at the project root anchors `here::here()` to this directory, so all data and helper paths resolve correctly.
+Open DETECT in the IDE. The `.here` file at the project root anchors `here::here()` to this directory, so all data and helper paths resolve correctly.
 
 ### Step 3: Install Project Dependencies
 
@@ -127,23 +128,26 @@ Data is **not tracked in git** (see [Repository Structure](#repository-structure
 
 ## API Keys
 
-Request tokens via the wiki: <https://github.com/brad-cannell/r33_dashboards/wiki/DETECT%E2%80%90RPC-Data#accessing-data-through-api>
+1. Request tokens via the wiki: <https://github.com/brad-cannell/r33_dashboards/wiki/DETECT%E2%80%90RPC-Data#accessing-data-through-api>
 
 | Keyring service | Source | Used by |
 |---|---|---|
-| `detect_tool_redcap_api` | REDCap — project **DETECT Tool** (<https://redcap.uth.tmc.edu>) | DETECT Tool dashboard |
+| `detect_tool_redcap_api` | REDCap project: **DETECT Tool** (<https://redcap.uth.tmc.edu>) | DETECT Tool dashboard |
 | `detect_tool_go_uth_api` | GO UTHealth — **Elder Abuse Definitions** (<https://apps.uth.edu/go>) | DETECT Tool dashboard (link/click data) |
-| `aps_reports_redcap_api` | REDCap — project **DETECT-RPC APS Reporting** (<https://redcap.uth.tmc.edu>) | APS Baseline dashboard **and** R33 `aps_reports` prep |
+| `aps_reports_redcap_api` | REDCap project: **DETECT-RPC APS Reporting** (<https://redcap.uth.tmc.edu>) | APS Baseline dashboard **and** R33 `aps_reports` prep |
 
-Store each token with [keyring](https://keyring.r-lib.org/) (a password box will appear for the token value):
+2. Store each token with [keyring](https://keyring.r-lib.org/) 
+
+In the IDE: 
 
 ```r
 keyring::key_set("detect_tool_redcap_api")
 keyring::key_set("detect_tool_go_uth_api")
 keyring::key_set("aps_reports_redcap_api")
 ```
+A password box will appear for you to input the API token value.
 
-You only need the keys for the dashboards you intend to build. **Tokens are stored in your OS keychain, never in the repo.**
+**Tokens are stored in your OS keychain, never in the repo.**
 
 ---
 
@@ -154,41 +158,50 @@ The whole site renders together — every page in the `render:` list of `_quarto
 ### Step 1: Refresh the Data
 
 - **DETECT Tool** — run the prep documents in `data_management/detect_tool/` (`data_01_detect_tool.qmd`, `data_02_detect_tool.qmd`). See the [DETECT Tool README](sections/README_detect_tool_dashboard.md).
-- **APS Baseline** — build the DuckDB database:
-  ```shell
-  rscript data_management/aps_baseline/data_operations.R
-  ```
-  This writes `data/aps_baseline/APS-DATA.duckdb`. See the [APS Baseline README](sections/README_aps_baseline_dashboard.md).
+- **APS Baseline** — build the DuckDB database. See the [APS Baseline README](sections/README_aps_baseline_dashboard.md).
 
-### Step 2: Render / Publish
+### Step 2: Render the Dashboard
 
 ```shell
 quarto render      # to render locally without publishing:
 quarto publish gh-pages     # render + publish to GitHub Pages
+ ```
+ 
+### Step 3: View in Browser
+- Open the HTML file (index.html) in your browser. Ensure build looks correct, and both dashboards have rendered as expected. 
+
+### Step 4: Commit and Publish to GitHub
+
+```shell
+git add .
+git git commit -m "YYYY-MM-DD Dashboard Update"
+git push
 ```
 
 - Confirm the publish target when prompted (this repo's GitHub Pages URL).
 - You may be asked for your computer's password one or more times to let `keyring` release the API tokens.
 
-### Step 3: Commit and Push
-
-```shell
-git add .
-git commit -m "YYYY-MM-DD Dashboard Update"
-git push
-```
-
 ---
 
 ## Development Workflow
 
-Use feature branches:
+###Branching
+Use feature branches for developing dashboards:
 
 ```shell
 git checkout -b feature/your-feature-name
-# ...make changes...
+```
+
+### Commit Changes
+
+```shell
 git add .
 git commit -m "Describe changes clearly"
+```
+
+### Push to Remote
+
+```shell
 git push origin feature/your-feature-name
 ```
 
@@ -209,12 +222,7 @@ git push origin feature/your-feature-name
 |---|---|
 | `index.qmd` | R33 Dashboard landing screen (study aims and objectives) |
 | `sections/` | Quarto documents that produce each dashboard page |
-| `sections/detect_tool_dashboard.qmd` | DETECT tool dashboard (R33) — [README](sections/README_detect_tool_dashboard.md) |
-| `sections/aps_baseline_dashboard.qmd` | APS Baseline dashboard — [README](sections/README_aps_baseline_dashboard.md) |
-| `sections/clinician_screening_completion_tracker.qmd`, `recruitment_and_scheduling_tracker.qmd`, `screening_tool_dashboard.qmd` | Additional R33 trackers (not currently published) |
-| `data_management/` | Data-prep scripts that pull from REDCap and write prepped data to `data/` |
-| `data_management/detect_tool/`, `detect_tool_pilot/`, `aps_reports/`, `mock_data/` | R33 prep pipelines (one folder per data stream) |
-| `data_management/aps_baseline/data_operations.R` | APS Baseline prep — builds `data/aps_baseline/APS-DATA.duckdb` |
+| `data_management/` | Data-prep scripts that pull from REDCap and write prepped data to `data/` (separated by corresponding dashboard) |
 | `data/` | Prepped/source data — **not tracked in git** (regenerated by `data_management/` scripts) |
 | `r/` | Active helper functions and lookups (includes APS `codebook.r`) |
 | `tests/` | `testthat` tests (currently covers APS `data_operations.R`) |

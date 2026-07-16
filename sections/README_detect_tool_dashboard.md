@@ -1,18 +1,33 @@
-# DETECT Tool Dashboard
+# R33 DETECT Tool Dashboard
 
 Page: [`detect_tool_dashboard.qmd`](detect_tool_dashboard.qmd) · Published at the "Dashboards → DETECT Tool" navbar entry.
 
-> This README covers only what is **specific** to the DETECT Tool dashboard. For installation, `renv`, general API-key setup, publishing, and troubleshooting shared across all dashboards, see the [main README](../README.md).
+> This README covers only what is **specific** to the R33 (Detect Tool) dashboard. For installation, API-key setup, and publishing shared across all dashboards, see the [main README](../README.md).
 
 ---
 
-## Goal
+## Overview of the Study
 
-Track use of the adapted **DETECT screening tool** by home-based primary care clinicians during the R33 universal EM-screening RCT — how many reporting instruments have been submitted, which EM indicators are being flagged, and completeness of the screening data over time. It is the primary progress-monitoring view for the experimental screening arm.
+The primary objective of the study is to evaluate whether the use of the DETECT-RPC screening tool increases the average reporting of elder mistreatment (EM) by HBPC clinicians relative to a baseline period where they did not use the DETECT-RPC screening tool.
 
-## Data Sources
+The R33 phase is divided into two parts:
 
-| Source | Keyring service | REDCap/GO project |
+  1. Universal EM Screening (RCT)
+  2. Caregiver Dyad Follow-Up Interviews
+
+### Universal EM Screening
+
+In this part of the study (year 3-5), we will randomize approximately 43 home-based primary care clinicians to either use the adapted DETECT screening tool at every qualified home based primary care patient encounter (experimental condition) or continue to provide standard care (control condition). Providers randomized to the experimental condition will use the adapted DETECT tool at every qualified patient encounter. A waiver of informed consent is approved, as it requires no direct input from the patient; rather, it is a purely observation-based tool, which is completed by the clinician. Over the three years of follow-up, we expect our partner home-based primary care programs to treat approximately 6,150 older adults. Through the randomization process, we expect half of that number to be screened by a clinician using the adapted DETECT tool.
+
+### Caregiver Dyad Follow-Up Interviews
+
+In this part, we will recruit a purposive sample of 180 caregiving dyads consisting of family caregivers and their care recipients, half of which will be living with Alzheimer’s Disease or Related Dementias (ADRD). The study is recruiting dyads because we are interested in caregiver behaviors and their relationship to care recipient outcomes. The caregiving dyads will be recruited from among patients who are actively enrolled in one of our site-specific home-based primary care programs.
+
+This repository contains the code used to create dashboards for tracking the progress of the study.
+
+## Corresponding Data Sources
+
+| Source | Keyring name | REDCap Project/GO UTH Link |
 |---|---|---|
 | Screening submissions | `detect_tool_redcap_api` | REDCap — **DETECT Tool** (`reporting_instrument` form) |
 | Link / click activity | `detect_tool_go_uth_api` | GO UTHealth — **Elder Abuse Definitions** |
@@ -21,41 +36,7 @@ Both keys are required to refresh this dashboard. See [main README → API Keys]
 
 ## Dashboard-Specific Setup
 
-1. Ensure `detect_tool_redcap_api` and `detect_tool_go_uth_api` are in your keyring.
+1. Ensure `detect_tool_redcap_api` and `detect_tool_go_uth_api` are in your keyring (see [main README → API Keys](../README.md#api-keys))..
 2. Refresh the prepped data by running the prep documents in order:
    - `data_management/detect_tool/data_01_detect_tool.qmd` — pulls raw REDCap + GO UTHealth data and cleans it.
    - `data_management/detect_tool/data_02_detect_tool.qmd` — further preparation for dashboard summaries.
-3. These write the prepped files this page reads from `data/detect_tool/`:
-   - `detect_tool_cleaned.RDS`
-   - `dashboard_prepped_data.RData`
-   - `detect_tool_link_hits.RDS`
-   - plus `data_management/detect_tool/variable_descriptions.RDS`
-
-All paths are resolved with `here::here("data", "detect_tool", ...)`, anchored to the repo root.
-
-## Data Format
-
-Uses R serialized objects — **`.RDS` / `.RData`** loaded with `readRDS()` / `load()`. (Contrast: the APS Baseline dashboard uses a DuckDB database.)
-
-## Styling & Rendering
-
-- `format: dashboard` with the **default** Quarto dashboard theme (no explicit `theme:`), so it inherits standard Bootstrap styling rather than a named bootswatch theme.
-- Layout: sidebar + value-box rows for EM indicators, plus tabular detail.
-- Tables rendered with **`flextable`** (with custom row-merging for duplicate values) and **`DT`**, with row shading via `r/add_shade_column_x_rows.R`.
-- Charts via **`ggplot2`** + **`plotly`**; interactive filtering via **`crosstalk`**.
-
-## Key Dependencies (beyond the shared set)
-
-`flextable`, `officer`, `ggplot2`, `crosstalk`, `DT`, `plotly`, `purrr`, `rlang` — all captured in `renv.lock`.
-
-## Helper Functions Used
-
-Sourced from `r/`: `add_shade_column_x_rows.R` (DT table shading). Other `r/` helpers (`color_alert.R`, `format_table.R`, `gauge_chart.R`, `time_series.R`, `nums_to_na.R`, `recoding_factoring_relocating.R`, `data_cleaning_tools.R`, `month_name_year.R`) support this dashboard and the R33 prep pipeline.
-
-## How It Differs From the Other Dashboards
-
-- **Data format:** `.RDS`/`.RData` (vs APS Baseline's DuckDB).
-- **Two data sources** (REDCap DETECT Tool + GO UTHealth), vs APS Baseline's single REDCap project.
-- **Theme:** default dashboard theme (vs APS Baseline's `simplex`).
-- **Tables:** `flextable`/`officer` heavy (vs APS Baseline's `DT` + SQL result sets).
-- **Prep:** multi-step Quarto prep documents (vs APS Baseline's single `data_operations.R`).
