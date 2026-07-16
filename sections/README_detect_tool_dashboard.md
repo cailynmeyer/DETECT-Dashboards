@@ -36,16 +36,18 @@ Both keys are required to refresh this dashboard. See [main README → API Keys]
 
 ## Dashboard-Specific Setup
 
-1. Ensure `detect_tool_redcap_api` and `detect_tool_go_uth_api` are in your keyring (see [main README → API Keys](../README.md#api-keys)).
-2. Refresh the prepped data by running the prep documents in order:
+1. Ensure `detect_tool_redcap_api`, `detect_tool_go_uth_api`, and `aps_reports_redcap_api` are in your keyring (see [main README → API Keys](../README.md#api-keys)). The APS reports key is required here because `data_02` joins in APS reports data.
+2. From the **repo root**, refresh the prepped data by running the prep documents in this order:
    - `data_management/detect_tool/data_01_detect_tool.qmd` — pulls raw REDCap + GO UTHealth data and cleans it.
-   - `data_management/detect_tool/data_02_detect_tool.qmd` — further preparation for dashboard summaries.
+   - `data_management/aps_reports/data_01_aps_reports.qmd` — pulls the APS reports data that `data_02` depends on.
+   - `data_management/detect_tool/data_02_detect_tool.qmd` — further preparation for dashboard summaries (**reads the APS reports output from the previous step**).
   
   In the terminal: 
   
   ```shell
-  cd data_management/detect_tool
-  quarto render data_01_detect_tool.qmd
-  quarto render data_02_detect_tool.qmd
+  # run from the repo root
+  quarto render data_management/detect_tool/data_01_detect_tool.qmd
+  quarto render data_management/aps_reports/data_01_aps_reports.qmd
+  quarto render data_management/detect_tool/data_02_detect_tool.qmd
   ```
-3. Continue with building and publishing the full dashboard. See [main README → API Keys](../README.md#api-keys).
+3. Continue with building and publishing the full dashboard. See [main README → Building & Publishing](../README.md#building--publishing).

@@ -157,7 +157,7 @@ The whole site renders together — every page in the `render:` list of `_quarto
 
 ### Step 1: Refresh the Data
 
-- **DETECT Tool** — run the prep documents in `data_management/detect_tool/` (`data_01_detect_tool.qmd`, `data_02_detect_tool.qmd`). See the [DETECT Tool README](sections/README_detect_tool_dashboard.md).
+- **DETECT Tool** — run three prep documents from the repo root, in order: `data_management/detect_tool/data_01_detect_tool.qmd`, then `data_management/aps_reports/data_01_aps_reports.qmd` (its output feeds `data_02`), then `data_management/detect_tool/data_02_detect_tool.qmd`. See the [DETECT Tool README](sections/README_detect_tool_dashboard.md).
 - **APS Baseline** — build the DuckDB database. See the [APS Baseline README](sections/README_aps_baseline_dashboard.md).
 
 ### Step 2: Render the Dashboard
