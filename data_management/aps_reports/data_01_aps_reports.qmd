@@ -28,6 +28,7 @@ library(keyring)
 source(here::here("r", "recoding_factoring_relocating.R"))
 source(here::here("r", "nums_to_na.R"))
 source(here::here("r", "data_cleaning_tools.R"))
+source(here::here("r", "get_api_token.R"))
 ```
 
 
@@ -38,7 +39,7 @@ keyring::key_set("aps_reports_redcap_api"). A password box will pop-up and your 
 
 ```{r}
 # Define REDCap API URL API token
-api_token <-  keyring::key_get("aps_reports_redcap_api")
+api_token <-  get_api_token("aps_reports_redcap_api")
 redcap_url <- "https://redcap.uth.tmc.edu/api/"
 
 # Establish connection to the REDCap project

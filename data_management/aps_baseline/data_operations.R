@@ -2,9 +2,11 @@ library(duckdb)
 library(fs)
 library(REDCapR)
 
+source(here::here("r", "get_api_token.R"))
+
 #### Functions - pulling and storing data
 
-get_data <- function(token = keyring::key_get("aps_reports_redcap_api")) {
+get_data <- function(token = get_api_token("aps_reports_redcap_api")) {
     redcap_read(
         redcap_uri = "https://redcap.uth.tmc.edu/api/",
         token = token,

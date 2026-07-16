@@ -30,6 +30,7 @@ library(jsonlite)
 source(here::here("r", "recoding_factoring_relocating.R"))
 source(here::here("r", "nums_to_na.R"))
 source(here::here("r", "data_cleaning_tools.R"))
+source(here::here("r", "get_api_token.R"))
 ```
 
 
@@ -40,7 +41,7 @@ keyring::key_set("detect_tool_redcap_api"). A password box will pop-up and your 
 
 ```{r}
 # Define REDCap API URL and API token
-api_token <-  keyring::key_get("detect_tool_redcap_api") 
+api_token <-  get_api_token("detect_tool_redcap_api")
 redcap_url <- "https://redcap.uth.tmc.edu/api/"
 
 # Establish connection to the REDCap project
@@ -55,7 +56,7 @@ An API token can be requested on GO UTHealth. To request a token, you can follow
 
 ```{r}
 go_uth_app_name <- "ElderAbuseDefinitions"
-go_uth_api_token <- keyring::key_get("detect_tool_go_uth_api")
+go_uth_api_token <- get_api_token("detect_tool_go_uth_api")
 
 ## Function to get link data
 go_uth_link_api <- function(slug){
@@ -65,7 +66,7 @@ go_uth_link_api <- function(slug){
   start_date <- "03/12/2025" # Date of first launch of DETECT-RPC TOOL
   end_date <- format(Sys.Date(), format = "%m/%d/%Y") # today's date
   
-  details <- POST(go_uth_url, 
+  details <- POST(go_uth_url,
                   add_headers(
                     `Authorization` = paste("Bearer", go_uth_api_token),
                     `Content-type` = "application/json",
@@ -73,15 +74,35 @@ go_uth_link_api <- function(slug){
                     `startDate` = start_date,
                     `endDate` = end_date
                   ))
-  
+
+  # Gracefully handle GO-UTHealth API failures (e.g. an expired/invalid token
+  # returns HTTP 401). Return NULL so the pipeline can fall back to the most
+  # recent saved link data instead of halting the whole build.
+  if (httr::status_code(details) != 200) {
+    warning(sprintf(
+      "GO-UTHealth API returned HTTP %s for slug '%s'; skipping live link-traffic pull.",
+      httr::status_code(details), slug
+    ))
+    return(NULL)
+  }
+
   # Extract and parse the JSON response
   raw_content <- content(details, "text", encoding = "UTF-8")
   parsed_json <- fromJSON(raw_content, flatten = TRUE)
-  
+
+  # Guard against a 200 response that still lacks traffic data
+  if (is.null(parsed_json$traffic)) {
+    warning(sprintf(
+      "GO-UTHealth response for slug '%s' contained no traffic data; skipping.",
+      slug
+    ))
+    return(NULL)
+  }
+
   # Create column name based on slug
   new_col_name <- snakecase::to_snake_case(slug)
   # Extract the traffic data frame from parsed_json list
-  parsed_json$traffic %>% rename_with(~new_col_name, "hit") 
+  parsed_json$traffic %>% rename_with(~new_col_name, "hit")
 }
 ```
 
@@ -555,15 +576,37 @@ var_desc <- bind_rows(var_desc, tool_vars) %>%
 
 ```{r}
 # Merge all the link data into one data frame
-link_hits <- list(definitions_link_hits, al_link_hits, ca_link_hits, 
-                  md_link_hits, tx_link_hits) %>% purrr::reduce(left_join, 
-                                                                by = "date") %>%
-  # Convert data frame to long form
-  tidyr::pivot_longer(!date, names_to = "link", values_to = "hits") %>%
-  mutate(
-    date = lubridate::mdy(date)
-  )
-  
+link_list <- list(definitions_link_hits, al_link_hits, ca_link_hits,
+                   md_link_hits, tx_link_hits)
+
+if (any(vapply(link_list, is.null, logical(1)))) {
+  # One or more GO-UTHealth link-traffic pulls failed (e.g. expired token).
+  # Fall back to the most recent saved link data so the rest of the pipeline
+  # and the dashboard can still render. Flag it so we don't overwrite the good
+  # saved copy with stale/empty data below.
+  link_hits_fresh <- FALSE
+  existing_link_path <- here::here("data", "detect_tool",
+                                   "detect_tool_link_hits.RDS")
+  if (file.exists(existing_link_path)) {
+    message("GO-UTHealth link data unavailable; reusing existing ",
+            "detect_tool_link_hits.RDS")
+    link_hits <- readr::read_rds(existing_link_path)
+  } else {
+    message("GO-UTHealth link data unavailable and no saved copy found; ",
+            "using empty link data")
+    link_hits <- data.frame(date = as.Date(character()),
+                            link = character(), hits = numeric())
+  }
+} else {
+  link_hits_fresh <- TRUE
+  link_hits <- link_list %>% purrr::reduce(left_join, by = "date") %>%
+    # Convert data frame to long form
+    tidyr::pivot_longer(!date, names_to = "link", values_to = "hits") %>%
+    mutate(
+      date = lubridate::mdy(date)
+    )
+}
+
 ```
 
 
@@ -586,6 +629,11 @@ write_rds(var_desc, here::here("data_management", "detect_tool",
 ```
 
 ```{r}
-write_rds(link_hits, here::here("data", "detect_tool",
-                               "detect_tool_link_hits.RDS"))
+if (link_hits_fresh) {
+  write_rds(link_hits, here::here("data", "detect_tool",
+                                 "detect_tool_link_hits.RDS"))
+} else {
+  message("Skipping overwrite of detect_tool_link_hits.RDS ",
+          "(no fresh GO-UTHealth data this run).")
+}
 ```

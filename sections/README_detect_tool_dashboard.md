@@ -44,7 +44,7 @@ Both keys are required to refresh this dashboard. See [main README → API Keys]
   In the terminal: 
   
   ```shell
-  cd data_management
+  cd data_management/detect_tool
   quarto render data_01_detect_tool.qmd
   quarto render data_02_detect_tool.qmd
   ```
