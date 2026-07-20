@@ -94,6 +94,11 @@ wheels/
 /_site/
 /index_files/
 
+# Data-prep documents are run for their side effects (they write the .RDS and
+# database files the dashboards read). Their rendered HTML is a byproduct.
+data_management/**/*.html
+data_management/**/*_files/
+
 # =============================================================================
 # Project data
 # =============================================================================
