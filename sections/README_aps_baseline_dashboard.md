@@ -22,14 +22,20 @@ Efficiently monitor APS Baseline reporting submissions. It is the progress-monit
 ## Dashboard-Specific Setup
 
 1. Ensure `aps_reports_redcap_api` is in your keyring (see [main README → API Keys](../README.md#api-keys)).
-2. Ensure 'renv' current ()
-3. Build the DuckDB database (in terminal):
+2. Ensure `renv` is current (`renv::status()`; restore with `renv::restore()`).
+3. From the **repo root**, build the DuckDB database:
 
    ```shell
-   cd data_management/aps_baseline
-   rscript data_operations.R
+   cd DETECT
+   Rscript data_management/aps_baseline/data_operations.R
    ```
-   This pulls from REDCap (via `REDCapR`) and writes `data/aps_baseline/APS-DATA.duckdb` with a table named **`APS-BL`**.
+   This runs the APS prep document:
+   - `data_management/aps_baseline/data_operations.R`:This pulls from REDCap (via `REDCapR`) and writes `data/aps_baseline/APS-DATA.duckdb` with a table named **`APS-BL`**.
+
+   > [!NOTE]
+   > This is a plain R script, so it is run — never rendered. The equivalent step for the DETECT Tool dashboard is `Rscript r/refresh_data.R`; see the [DETECT Tool README](README_detect_tool_dashboard.md). Both are listed together in [main README → Step 1](../README.md#step-1-refresh-the-data).
+
+4. Continue with building and publishing the full dashboard. See [main README → Building & Publishing](../README.md#building--publishing).
 
 Paths are resolved with `here::here("data", "aps_baseline", "APS-DATA.duckdb")`, anchored to the repo root.
 

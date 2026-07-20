@@ -157,29 +157,61 @@ The whole site renders together — every page in the `render:` list of `_quarto
 
 ### Step 1: Refresh the Data
 
-- **DETECT Tool** — run three prep documents from the repo root, in order: `data_management/detect_tool/data_01_detect_tool.qmd`, then `data_management/aps_reports/data_01_aps_reports.qmd` (its output feeds `data_02`), then `data_management/detect_tool/data_02_detect_tool.qmd`. See the [DETECT Tool README](sections/README_detect_tool_dashboard.md).
-- **APS Baseline** — build the DuckDB database. See the [APS Baseline README](sections/README_aps_baseline_dashboard.md).
-
-### Step 2: Render the Dashboard
+Each dashboard has its own prep pipeline. Run both from the **repo root**:
 
 ```shell
-quarto render      # to render locally without publishing:
-quarto publish gh-pages     # render + publish to GitHub Pages
- ```
- 
-### Step 3: View in Browser
-- Open the HTML file (index.html) in your browser. Ensure build looks correct, and both dashboards have rendered as expected. 
+cd DETECT
+Rscript r/refresh_data.R                                # DETECT Tool
+Rscript data_management/aps_baseline/data_operations.R  # APS Baseline
+```
 
-### Step 4: Commit and Publish to GitHub
+- **DETECT Tool** — `r/refresh_data.R` runs the three prep documents in dependency order (`detect_tool/data_01` → `aps_reports/data_01` → `detect_tool/data_02`, since `data_02` reads the APS reports output). After each step it verifies the expected `.RDS`/`.RData` files were actually rewritten, and stops rather than letting a later step build on stale input. See the [DETECT Tool README](sections/README_detect_tool_dashboard.md).
+- **APS Baseline** — pulls from REDCap and writes `data/aps_baseline/APS-DATA.duckdb`. See the [APS Baseline README](sections/README_aps_baseline_dashboard.md).
+
+You may be prompted for your computer's password so `keyring` can release the API tokens.
+
+> [!IMPORTANT]
+> **Run the prep documents — don't render them.** They are executed for their side effects: they write the data files the dashboards read. Rendering them with `quarto render` produces an unwanted HTML page plus a `_files/libs/` bundle (~2.6 MB per document) and refreshes nothing extra. `r/refresh_data.R` executes the code without rendering. These byproducts are gitignored, so an accidental render won't reach the repo.
+
+### Step 2: Render Locally
+
+```shell
+quarto render
+```
+
+Renders into `_site/`, which is gitignored and never committed — the published copy lives on `gh-pages`.
+
+### Step 3: View in Browser
+
+Open `_site/index.html` in your browser. Confirm the build looks correct and both dashboards rendered as expected.
+
+### Step 4: Commit the Source
 
 ```shell
 git add .
-git git commit -m "YYYY-MM-DD Dashboard Update"
+git commit -m "YYYY-MM-DD Dashboard Update"
 git push
 ```
 
-- Confirm the publish target when prompted (this repo's GitHub Pages URL).
-- You may be asked for your computer's password one or more times to let `keyring` release the API tokens.
+### Step 5: Publish the Site
+
+```shell
+quarto publish gh-pages
+```
+
+This re-renders, pushes the result to the `gh-pages` branch, and records the target in `_publish.yml` — commit that file the first time it appears.
+
+The site publishes to:
+
+**https://cailynmeyer.github.io/DETECT-Dashboards/**
+
+| Page | Path |
+| --- | --- |
+| Overview | `/` |
+| DETECT Tool Dashboard | `/sections/detect_tool_dashboard.html` |
+| APS Baseline Dashboard | `/sections/aps_baseline_dashboard.html` |
+
+> **First publish only:** the `gh-pages` branch does not exist yet. Quarto will offer to create it — accept, then in the repo's **Settings → Pages** set the source to the `gh-pages` branch, root folder. The page goes live a minute or two later. Confirm the publish target when prompted.
 
 ---
 

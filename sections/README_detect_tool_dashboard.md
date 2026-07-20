@@ -37,17 +37,25 @@ Both keys are required to refresh this dashboard. See [main README → API Keys]
 ## Dashboard-Specific Setup
 
 1. Ensure `detect_tool_redcap_api`, `detect_tool_go_uth_api`, and `aps_reports_redcap_api` are in your keyring (see [main README → API Keys](../README.md#api-keys)). The APS reports key is required here because `data_02` joins in APS reports data.
-2. From the **repo root**, refresh the prepped data by running the prep documents in this order:
-   - `data_management/detect_tool/data_01_detect_tool.qmd` — pulls raw REDCap + GO UTHealth data and cleans it.
-   - `data_management/aps_reports/data_01_aps_reports.qmd` — pulls the APS reports data that `data_02` depends on.
-   - `data_management/detect_tool/data_02_detect_tool.qmd` — further preparation for dashboard summaries (**reads the APS reports output from the previous step**).
-  
-  In the terminal: 
-  
-  ```shell
-  # run from the repo root
-  quarto render data_management/detect_tool/data_01_detect_tool.qmd
-  quarto render data_management/aps_reports/data_01_aps_reports.qmd
-  quarto render data_management/detect_tool/data_02_detect_tool.qmd
-  ```
+2. From the **repo root**, refresh the prepped data:
+
+   ```shell
+   cd DETECT
+   Rscript r/refresh_data.R
+   ```
+
+   This runs the three prep documents in dependency order:
+
+   - `data_management/detect_tool/data_01_detect_tool.qmd` — pulls raw REDCap + GO UTHealth data and cleans it. Writes `data/detect_tool/detect_tool_cleaned.RDS` and `detect_tool_link_hits.RDS`.
+   - `data_management/aps_reports/data_01_aps_reports.qmd` — pulls the APS reports data that `data_02` depends on. Writes `data/aps_reports/aps_reports_cleaned.RDS`.
+   - `data_management/detect_tool/data_02_detect_tool.qmd` — further preparation for dashboard summaries (**reads the APS reports output from the previous step**). Writes `data/detect_tool/dashboard_prepped_data.RData`.
+
+   After each step the script checks that the expected outputs were actually rewritten during this run, and stops if one wasn't — so a failed pull can't leave a later step building on stale data.
+
+   > [!IMPORTANT]
+   > **Run the prep documents — don't render them.** They exist for their side effects: they write the data files the dashboard reads. `quarto render` on a prep document produces an unwanted HTML page plus a `_files/libs/` bundle (~2.6 MB each) and refreshes nothing extra. `refresh_data.R` executes the code without rendering. These byproducts are gitignored, so an accidental render won't reach the repo.
+
+   > [!NOTE]
+   > **If the GO UTHealth token is rejected (HTTP 401),** `data_01` falls back to the last saved `detect_tool_link_hits.RDS` rather than failing, so the rest of the refresh completes. `refresh_data.R` reports this at the end under "NOT refreshed this run" — the link/click figures will be stale until a working token is in the keyring. All other data still refreshes normally.
+
 3. Continue with building and publishing the full dashboard. See [main README → Building & Publishing](../README.md#building--publishing).
