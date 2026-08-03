@@ -111,7 +111,7 @@ side_bar_df %>%
 
 ```{r, echo=FALSE}
 patients <- data %>% select(ri_patient_mrn) %>% unique() %>% nrow()
-clinicians <- data %>% select(ri_clinician_id_name) %>% unique() %>% nrow()
+clinicians <- data %>% filter(!is.na(ri_clinician_id_name)) %>% distinct(ri_clinician_id_name) %>% nrow()
 survey_responses <- data %>% nrow()
 time_period <- paste(
     min(as.Date(data$ri_timestamp_start), na.rm = TRUE),
