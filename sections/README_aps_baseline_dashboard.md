@@ -45,4 +45,4 @@ Paths are resolved with `here::here("data", "aps_baseline", "APS-DATA.duckdb")`,
 
 ## Tests
 
-`tests/testthat/test-data-operations.R` exercises the `get_data()` / `save_data()` functions in `data_management/aps_baseline/data_operations.R` (some mock-data cases are still marked `TODO`). Run with `testthat::test_dir("tests/testthat")`.
+There are currently no active tests for this dashboard. An earlier stub for the `get_data()` / `save_data()` functions in `data_management/aps_baseline/data_operations.R` was never finished and has been archived to [`_archive/tests/`](../_archive/tests/README.md) — that note explains what to fix before reviving it (source side-effects, `save_data()` scoping, and building mocks against the real APS-BL schema). Once restored to `tests/testthat/`, run with `testthat::test_dir("tests/testthat")`.
