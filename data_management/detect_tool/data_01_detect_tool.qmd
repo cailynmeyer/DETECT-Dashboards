@@ -177,6 +177,45 @@ var_desc <- data.frame(variable = names(vars_labels), description = unname(vars_
 ```
 
 
+# Bind locally-exported (non-REDCap) submissions
+
+Some DETECT tool submissions (currently UT Physicians) are captured outside
+REDCap and exported to Excel. `reshape_new_detect_data.R` reshapes that export
+into the same raw layout as `tool_raw` and saves it as
+`data/detect_tool/detect_tool_excel_raw.RDS`. When that file is present we bind
+it onto `tool_raw` here, so those rows are cleaned by exactly the same steps
+below. The file is optional: if it is absent (no new export this run) the
+pipeline proceeds with REDCap data only. `var_desc` is built above from the
+REDCap structure, so binding afterwards leaves the variable descriptions intact.
+
+```{r}
+excel_raw_path <- here::here("data", "detect_tool", "detect_tool_excel_raw.RDS")
+if (file.exists(excel_raw_path)) {
+  excel_raw <- readr::read_rds(excel_raw_path)
+
+  # Coerce shared columns to the type tool_raw uses so bind_rows can't fail on a
+  # type mismatch (e.g. numeric vs character MRN / institution code).
+  for (nm in intersect(names(excel_raw), names(tool_raw))) {
+    target <- tool_raw[[nm]]
+    excel_raw[[nm]] <- if (is.character(target)) {
+      as.character(excel_raw[[nm]])
+    } else if (inherits(target, "Date")) {
+      as.Date(excel_raw[[nm]])
+    } else if (inherits(target, "POSIXct")) {
+      as.POSIXct(excel_raw[[nm]], tz = "UTC")
+    } else if (is.numeric(target)) {
+      suppressWarnings(as.numeric(excel_raw[[nm]]))
+    } else {
+      excel_raw[[nm]]
+    }
+  }
+
+  tool_raw <- dplyr::bind_rows(tool_raw, excel_raw)
+  message("Bound ", nrow(excel_raw), " reshaped non-REDCap row(s) onto tool_raw.")
+}
+```
+
+
 # Create new variables
 
 ## Replace reporting instument timestamp variable with timestamp end variable
