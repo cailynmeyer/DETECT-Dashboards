@@ -43,7 +43,19 @@ library(stringr)
 library(here)
 
 # --- 0. Config ---------------------------------------------------------------
-EXCEL_PATH       <- here::here("data", "detect_tool", "vSMRTDTA_visual_073026.xlsx")
+# UTP EMR exports are named EMR_data_YYYY_MM_DD.xlsx; use the newest one on disk.
+EXCEL_PATH <- local({
+    fs <- list.files(
+        here::here("data", "detect_tool"),
+        pattern = "^EMR_data_[0-9]{4}[-_][0-9]{2}[-_][0-9]{2}\\.xlsx$", full.names = TRUE
+    )
+    if (length(fs) == 0) {
+        stop("No EMR_data_YYYY-MM-DD.xlsx found in data/detect_tool.", call. = FALSE)
+    }
+    d <- as.Date(gsub("_", "-", sub(".*EMR_data_([0-9]{4}[-_][0-9]{2}[-_][0-9]{2})\\.xlsx$", "\\1", fs)),
+                 format = "%Y-%m-%d")
+    fs[which.max(d)]  # newest pull
+})
 SHEET            <- "vSMRTDATAv"   # tab to read (the workbook has two tabs).
                                    #   Matched exactly first, then by prefix (e.g. vSMRTDATAv2).
 INSTITUTION_CODE <- 7   # 1=Baylor 2=JH 3=UCSF 4=UAB 5=UTSW 6=LBJ 7=UTP
@@ -54,7 +66,7 @@ INSTITUTION_NAME <- "UTH Houston - UT Physicians House Calls"
 COL_PATIENT_ID <- "PAT_ID"       # patient id used to GROUP a submission
 COL_MRN        <- "MRN"          # medical record number -> ri_patient_mrn
 COL_DATE       <- "dttm"         # per-row documentation SUBMISSION datetime
-COL_QNUM       <- "c"            # question-number column ("UTP544" -> 544)
+COL_QNUM       <- "ELEMENT_ID"   # question-number column ("UTP544" -> 544)
 COL_NAME       <- "name"         # question-name column
 COL_VALUE      <- "value"        # response-value column
 

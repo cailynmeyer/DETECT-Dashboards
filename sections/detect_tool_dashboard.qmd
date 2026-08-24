@@ -44,6 +44,44 @@ var_desc <- readRDS(here::here(
 
 path <- here::here("data", "detect_tool", "dashboard_prepped_data.RData")
 load(path)
+
+# --- Per-site "last updated" dates ------------------------------------------
+# REDCap sites all refresh together, so their pull date is the cleaned-file mtime.
+redcap_pull_date <- as.Date(file.mtime(detect_tool_data_path))
+
+# UTP is a manual EMR export named EMR_data_YYYY_MM_DD.xlsx. Parse the date from
+# the newest matching filename (ISO order -> unambiguous).
+utp_pull_date <- local({
+    fs <- list.files(
+        here::here("data", "detect_tool"),
+        pattern = "^EMR_data_[0-9]{4}[-_][0-9]{2}[-_][0-9]{2}\\.xlsx$"
+    )
+    if (length(fs) == 0) return(as.Date(NA))
+    d <- sub("^EMR_data_([0-9]{4}[-_][0-9]{2}[-_][0-9]{2})\\.xlsx$", "\\1", fs)
+    parsed <- as.Date(gsub("_", "-", d), format = "%Y-%m-%d")
+    if (all(is.na(parsed))) as.Date(NA) else max(parsed, na.rm = TRUE)
+})
+
+# All tab: most recent update anywhere.
+all_last_update <- suppressWarnings(
+    max(c(redcap_pull_date, utp_pull_date), na.rm = TRUE)
+)
+if (!is.finite(as.numeric(all_last_update))) all_last_update <- as.Date(NA)
+
+# Institution label -> its pull date (REDCap sites share one date).
+site_pull_date <- function(label) {
+    if (identical(label, "UTH Houston - UT Physicians House Calls")) {
+        utp_pull_date
+    } else {
+        redcap_pull_date
+    }
+}
+
+# Formatted pull date for a site's value box ("—" if unknown).
+site_pull_str <- function(label) {
+    d <- site_pull_date(label)
+    if (length(d) == 0 || all(is.na(d))) "—" else format(as.Date(d), "%Y-%m-%d")
+}
 ```
 
 <!-- Load functions -->
@@ -72,72 +110,83 @@ merge_custom <- function(ft, x, columns) {
     }
     ft
 }
+
+# Sidebar box: file names + a per-page "Last Updated" date.
+sidebar_files_box <- function(updated_date, site_date = NULL) {
+    fmt_date <- function(d) {
+        if (length(d) == 0 || all(is.na(d))) "—" else format(as.Date(d), "%Y-%m-%d")
+    }
+    names_col <- c("File Names", "File Names", "File Names", "Last Updated")
+    values_col <- c(
+        basename(detect_tool_data_path),
+        basename(link_data_path),
+        basename(aps_reports_data_path),
+        fmt_date(updated_date)
+    )
+    # Site tabs get one extra row: when that site's own data was last pulled.
+    if (!is.null(site_date)) {
+        names_col <- c(names_col, "Site Updated")
+        values_col <- c(values_col, fmt_date(site_date))
+    }
+    sb <- data.frame(names = names_col, values = values_col)
+    sb %>%
+        flextable() %>%
+        delete_part(part = "header") %>%
+        bold(j = 1, part = "body") %>%
+        border_remove() %>%
+        width(j = c(1, 2), width = c(1.2, 1.3), unit = "in") %>%
+        add_header_lines("This dashboard displays statistics for:\n\n") %>%
+        color(j = c(1, 2), color = "#6c757d", part = "body") %>%
+        color(i = c(1), color = "#6c757d", part = "header") %>%
+        bg(bg = "#ffffff", part = "body") %>%
+        hline(part = "body", border = fp_border(color = "#f3f3f3")) %>%
+        height_all(height = 0.5, unit = "in") %>%
+        hrule(rule = "exact") %>%
+        merge_custom(x = sb$names, columns = 1) %>%
+        valign(j = 1, valign = "center")
+}
+
+# Sidebar box: Patients / Clinicians / Survey Responses / Time Period for `df`.
+sidebar_refs_box <- function(df) {
+    patients <- df %>% select(ri_patient_mrn) %>% unique() %>% nrow()
+    clinicians <- df %>% filter(!is.na(ri_clinician_id_name)) %>%
+        distinct(ri_clinician_id_name) %>% nrow()
+    survey_responses <- df %>% nrow()
+    time_period <- if (survey_responses == 0) {
+        "—"
+    } else {
+        paste(
+            suppressWarnings(min(as.Date(df$ri_timestamp_start), na.rm = TRUE)),
+            "to",
+            suppressWarnings(max(as.Date(df$timestamp_end), na.rm = TRUE))
+        )
+    }
+    data.frame(
+        names = c("Patients", "Clinicians", "Survey Responses", "Time Period"),
+        values = c(patients, clinicians, survey_responses, time_period)
+    ) %>%
+        flextable() %>%
+        delete_part(part = "header") %>%
+        bold(j = 1, part = "body") %>%
+        border_remove() %>%
+        width(j = c(1, 2), width = c(1.2, 1.2), unit = "in") %>%
+        add_header_lines("This data references:\n\n") %>%
+        color(j = c(1, 2), color = "#6c757d", part = "body") %>%
+        color(i = c(1), color = "#6c757d", part = "header") %>%
+        bg(bg = "#ffffff", part = "body") %>%
+        hline(part = "body", border = fp_border(color = "#f3f3f3")) %>%
+        height_all(height = 0.5, unit = "in") %>%
+        hrule(rule = "exact")
+}
+
 ```
 
 
 #  {.sidebar}
 
 ```{r, echo=FALSE}
-head_1 <- "This dashboard displays statistics for:\n\n"
-
-side_bar_df <- data.frame(
-    names = c("File Names", "File Names", "File Names", "Last Modified"),
-    values = c(
-        basename(detect_tool_data_path),
-        basename(link_data_path),
-        basename(aps_reports_data_path),
-        format(Sys.time(), "%Y-%m-%d %H:%M %Z")
-    )
-)
-
-side_bar_df %>%
-    flextable() %>%
-    delete_part(part = "header") %>%
-    bold(j = 1, part = "body") %>%
-    border_remove() %>%
-    width(j = c(1, 2), width = c(1.2, 1.3), unit = "in") %>%
-    add_header_lines(head_1) %>%
-    color(j = c(1, 2), color = "#6c757d", part = "body") %>%
-    color(i = c(1), color = "#6c757d", part = "header") %>%
-    bg(bg = "#ffffff", part = "body") %>%
-    hline(part = "body", border = fp_border(color = "#f3f3f3")) %>%
-    height_all(height = 0.5, unit = "in") %>%
-    hrule(rule = "exact") %>%
-    # Merge screening items column groups
-    merge_custom(x = side_bar_df$names, columns = 1) %>%
-    valign(j = 1, valign = "center")
-
-```
-
-```{r, echo=FALSE}
-patients <- data %>% select(ri_patient_mrn) %>% unique() %>% nrow()
-clinicians <- data %>% filter(!is.na(ri_clinician_id_name)) %>% distinct(ri_clinician_id_name) %>% nrow()
-survey_responses <- data %>% nrow()
-time_period <- paste(
-    min(as.Date(data$ri_timestamp_start), na.rm = TRUE),
-    "to",
-    max(as.Date(data$timestamp_end), na.rm = TRUE)
-)
-
-head_2 <- "This data references:\n\n"
-
-data.frame(
-    names = c("Patients", "Clinicians", "Survey Responses", "Time Period"),
-    values = c(patients, clinicians, survey_responses, time_period)
-) %>%
-    flextable() %>%
-    delete_part(part = "header") %>%
-    bold(j = 1, part = "body") %>%
-    border_remove() %>%
-    width(j = c(1, 2), width = c(1.2, 1.2), unit = "in") %>%
-    add_header_lines(head_2) %>%
-    color(j = c(1, 2), color = "#6c757d", part = "body") %>%
-    color(i = c(1), color = "#6c757d", part = "header") %>%
-    bg(bg = "#ffffff", part = "body") %>%
-    hline(part = "body", border = fp_border(color = "#f3f3f3")) %>%
-    height_all(height = 0.5, unit = "in") %>%
-    hrule(rule = "exact")
-
+sidebar_files_box(all_last_update)
+sidebar_refs_box(data)
 ```
 
 
@@ -231,6 +280,8 @@ list(
 #| echo: false
 #| title: Unique MRNs
 #| content: valuebox
+
+patients <- data %>% select(ri_patient_mrn) %>% unique() %>% nrow()
 
 # Create value box
 list(
@@ -729,6 +780,17 @@ em_type_sus_em_dt(sus_type_em_table_data_all)
 
 ## Row {height= "5%" .fill}
 
+```{r}
+#| echo: false
+#| title: Site Last Pulled
+#| content: valuebox
+list(
+    icon = "clock-history",
+    color = "vb-green",
+    value = site_pull_str("Baylor College of Medicine - BT House Calls")
+)
+```
+
 <!-- Started screening is defined as a response for any of the screening items (Yes, No or Unable to assess) without considering any branching logic questions. -->
 
 ```{r}
@@ -1021,6 +1083,17 @@ em_type_sus_em_dt(baylor_sus_type_em_table_data)
 
 ## Row {height= "5%" .fill}
 
+```{r}
+#| echo: false
+#| title: Site Last Pulled
+#| content: valuebox
+list(
+    icon = "clock-history",
+    color = "vb-green",
+    value = site_pull_str("Johns Hopkins - JHOME")
+)
+```
+
 <!-- Started screening is defined as a response for any of the screening items (Yes, No or Unable to assess) without considering any branching logic questions. -->
 
 ```{r}
@@ -1310,6 +1383,17 @@ em_type_sus_em_dt(jh_sus_type_em_table_data)
 
 ## Row {height= "5%" .fill}
 
+```{r}
+#| echo: false
+#| title: Site Last Pulled
+#| content: valuebox
+list(
+    icon = "clock-history",
+    color = "vb-green",
+    value = site_pull_str("UCSF - Care at Home Program")
+)
+```
+
 <!-- Started screening is defined as a response for any of the screening items (Yes, No or Unable to assess) without considering any branching logic questions. -->
 
 ```{r}
@@ -1597,6 +1681,17 @@ em_type_sus_em_dt(ucsf_sus_type_em_table_data)
 # UAB
 
 ## Row {height= "5%" .fill}
+
+```{r}
+#| echo: false
+#| title: Site Last Pulled
+#| content: valuebox
+list(
+    icon = "clock-history",
+    color = "vb-green",
+    value = site_pull_str("University of Alabama - UAB House Calls")
+)
+```
 
 <!-- Started screening is defined as a response for any of the screening items (Yes, No or Unable to assess) without considering any branching logic questions. -->
 
@@ -1886,6 +1981,17 @@ em_type_sus_em_dt(uab_sus_type_em_table_data)
 
 ## Row {height= "5%" .fill}
 
+```{r}
+#| echo: false
+#| title: Site Last Pulled
+#| content: valuebox
+list(
+    icon = "clock-history",
+    color = "vb-green",
+    value = site_pull_str("UT Southwestern - COVE")
+)
+```
+
 <!-- Started screening is defined as a response for any of the screening items (Yes, No or Unable to assess) without considering any branching logic questions. -->
 
 ```{r}
@@ -2174,6 +2280,17 @@ em_type_sus_em_dt(utsw_sus_type_em_table_data)
 
 ## Row {height= "5%" .fill}
 
+```{r}
+#| echo: false
+#| title: Site Last Pulled
+#| content: valuebox
+list(
+    icon = "clock-history",
+    color = "vb-green",
+    value = site_pull_str("UTH Houston - LBJ House Calls")
+)
+```
+
 <!-- Started screening is defined as a response for any of the screening items (Yes, No or Unable to assess) without considering any branching logic questions. -->
 
 ```{r}
@@ -2461,6 +2578,17 @@ em_type_sus_em_dt(lbj_sus_type_em_table_data)
 # UTP
 
 ## Row {height= "5%" .fill}
+
+```{r}
+#| echo: false
+#| title: Site Last Pulled
+#| content: valuebox
+list(
+    icon = "clock-history",
+    color = "vb-green",
+    value = site_pull_str("UTH Houston - UT Physicians House Calls")
+)
+```
 
 <!-- Started screening is defined as a response for any of the screening items (Yes, No or Unable to assess) without considering any branching logic questions. -->
 
