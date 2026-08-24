@@ -1,18 +1,26 @@
 # =============================================================================
-# test-all-tab-counts.R
+# test-redcap-counts.R
 # =============================================================================
-# Occasional-use integrity check: do the DETECT Tool 'All'-page counts the
-# dashboard displays match a fresh pull from REDCap?
+# Occasional-use integrity check: do the DETECT Tool counts for
+# REDCap-SUBSTANTIATED data match a fresh pull from REDCap?
 #
-# It pulls the reporting_instrument form live, recomputes each 'All'-tab count
-# directly from that pull, and prints a side-by-side table (dashboard vs REDCap)
-# plus a record_id reconciliation, then asserts every count matches.
+# The dashboard's data is a mix of two sources -- rows entered in REDCap and
+# rows manually uploaded from the EMR export (reshaped by
+# reshape_pulled_emr_data.R and bound on in data_01). This test validates ONLY
+# the REDCap-substantiated rows: the manually-uploaded EMR rows are excluded
+# from the dashboard side (by record_id, via detect_tool_excel_raw.RDS) so both
+# sides describe the same population. The EMR rows are covered separately by
+# test-utp-manual-counts.R.
+#
+# It pulls the reporting_instrument form live, recomputes each count directly
+# from that pull, and prints a side-by-side table (dashboard vs REDCap) plus a
+# record_id reconciliation, then asserts every count matches.
 #
 # REQUIRES a live REDCap pull -- there is NO offline/skip fallback by design.
 # If the token is missing or the API call fails, the test errors loudly.
 #
 # Writes nothing. The pull stays in memory; the "displayed" side reads the
-# existing (gitignored) data/detect_tool/*.RDS|*.RData. A run leaves git clean.
+# existing (gitignored) data/detect_tool/*.RDS. A run leaves git clean.
 #
 # Run occasionally, right after a data refresh:
 #   testthat::test_dir("tests/testthat")
@@ -48,17 +56,28 @@ clinician_cols <- c("ri_clinician_bcm", "ri_clinician_bcm_oth",
 answered <- function(x) !is.na(x) & trimws(as.character(x)) != ""
 
 
-test_that("DETECT Tool 'All'-tab counts match a fresh REDCap pull", {
+test_that("DETECT Tool REDCap-substantiated counts match a fresh REDCap pull", {
 
   # ---- Displayed side: exactly the data the dashboard renders ----------------
   cleaned_path <- here::here("data", "detect_tool", "detect_tool_cleaned.RDS")
-  rdata_path   <- here::here("data", "detect_tool", "dashboard_prepped_data.RData")
-  if (!file.exists(cleaned_path) || !file.exists(rdata_path)) {
+  if (!file.exists(cleaned_path)) {
     stop("Prepped data missing - run a data refresh before this test:\n  ", cleaned_path)
   }
   data <- readRDS(cleaned_path)                 # = `data` / `dt_data` in the dashboard
-  prepped <- new.env(); load(rdata_path, envir = prepped)
-  reports_intended <- prepped$reports_intended  # Intended Reports box source
+
+  # ---- Exclude manually-uploaded EMR rows so this measures REDCap only --------
+  # EMR rows are identified exactly by their record_ids in the reshape output.
+  excel_raw_path <- here::here("data", "detect_tool", "detect_tool_excel_raw.RDS")
+  emr_ids <- if (file.exists(excel_raw_path)) {
+    as.character(readRDS(excel_raw_path)$record_id)
+  } else {
+    character(0)
+  }
+  n_before <- nrow(data)
+  data <- data |> filter(!as.character(record_id) %in% emr_ids)
+  cat("\n--- source split ---------------------------------------------------\n")
+  cat("cleaned rows:", n_before, " | REDCap-substantiated (EMR excluded):",
+      nrow(data), " | EMR rows removed:", n_before - nrow(data), "\n")
 
   # ---- REDCap: fresh live pull (REQUIRED; errors if no token / offline) ------
   api_token <- get_api_token("detect_tool_redcap_api")   # errors loudly if absent
@@ -71,7 +90,7 @@ test_that("DETECT Tool 'All'-tab counts match a fresh REDCap pull", {
   raw_filtered <- raw |>
     filter(!(calc_institution == 4 & password_verification == 0))
 
-  # ---- record_id reconciliation (explains timing drift vs. real bugs) --------
+  # ---- record_id reconciliation (explains timing drift vs real bugs) ---------
   raw_ids  <- as.character(raw_filtered$record_id)
   dash_ids <- as.character(data$record_id)
   in_redcap_only <- setdiff(raw_ids, dash_ids)
@@ -111,7 +130,7 @@ test_that("DETECT Tool 'All'-tab counts match a fresh REDCap pull", {
     em_status_incomplete = data |> filter(if_all(all_of(screening_f), ~ !is.na(.x))) |>
                                     filter(is.na(suspect_em_2cat)) |> nrow(),      # :250
     em_suspected         = sum(data$suspect_em_2cat_f == "Yes", na.rm = TRUE),     # :271
-    intended_reports     = nrow(reports_intended)                                 # :287
+    intended_reports     = sum(data$ri_report_2cat_f == "Yes", na.rm = TRUE)       # :287
   )
 
   # ---- Counts: REDCap raw side (same predicates on raw text values) ----------
@@ -138,7 +157,7 @@ test_that("DETECT Tool 'All'-tab counts match a fresh REDCap pull", {
     row.names = NULL
   )
   cmp$match <- ifelse(cmp$dashboard == cmp$redcap, "OK", "*** MISMATCH ***")
-  cat("\n--- 'All'-tab counts: dashboard vs REDCap --------------------------\n")
+  cat("\n--- REDCap-substantiated counts: dashboard vs REDCap ---------------\n")
   print(cmp, row.names = FALSE)
   cat("--------------------------------------------------------------------\n\n")
 

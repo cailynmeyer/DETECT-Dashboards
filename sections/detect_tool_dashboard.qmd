@@ -189,6 +189,50 @@ sidebar_files_box(all_last_update)
 sidebar_refs_box(data)
 ```
 
+```{r, echo=FALSE, results='asis'}
+# Per-tab "last pulled" row. Rendered once into the shared sidebar; a small JS
+# toggle (bound to Bootstrap's shown.bs.tab) fills + shows it on the 7 site tabs
+# and hides it on All / Textbox Analytics. Row starts hidden, so if JS ever fails
+# the sidebar simply looks as it does today.
+site_meta <- list(
+    baylor          = c("Baylor",        site_pull_str("Baylor College of Medicine - BT House Calls")),
+    "johns-hopkins" = c("Johns Hopkins", site_pull_str("Johns Hopkins - JHOME")),
+    ucsf            = c("UCSF",          site_pull_str("UCSF - Care at Home Program")),
+    uab             = c("UAB",           site_pull_str("University of Alabama - UAB House Calls")),
+    utsw            = c("UTSW",          site_pull_str("UT Southwestern - COVE")),
+    lbj             = c("LBJ",           site_pull_str("UTH Houston - LBJ House Calls")),
+    utp             = c("UTP",           site_pull_str("UTH Houston - UT Physicians House Calls"))
+)
+entries <- vapply(names(site_meta), function(k)
+    sprintf('"%s":{"label":"%s","date":"%s"}', k, site_meta[[k]][1], site_meta[[k]][2]),
+    character(1))
+obj <- paste(entries, collapse = ",")
+cat('<div id="site-pull" class="sidebar-pull" style="display:none">',
+    '<div class="pull-label"></div><div class="pull-date"></div></div>', sep = "")
+cat(sprintf('<script>
+(function(){
+  var d = {%s};
+  function render(id){
+    var box=document.getElementById("site-pull"); if(!box) return;
+    var m=d[id];
+    if(m){ box.querySelector(".pull-label").textContent=m.label+" last pulled";
+           box.querySelector(".pull-date").textContent=m.date; box.style.display=""; }
+    else { box.style.display="none"; }
+  }
+  function active(){ var p=document.querySelector(".dashboard-page.tab-pane.show.active"); return p?p.id:"all"; }
+  document.addEventListener("DOMContentLoaded", function(){
+    render(active());
+    document.querySelectorAll(".navbar-nav a[data-bs-toggle=\\"tab\\"]").forEach(function(a){
+      a.addEventListener("shown.bs.tab", function(e){
+        var id=(e.target.getAttribute("data-bs-target")||"").slice(1), pane=document.getElementById(id);
+        if(pane&&pane.classList.contains("dashboard-page")) render(id);
+      });
+    });
+  });
+})();
+</script>', obj))
+```
+
 
 # All
 
@@ -780,17 +824,6 @@ em_type_sus_em_dt(sus_type_em_table_data_all)
 
 ## Row {height= "5%" .fill}
 
-```{r}
-#| echo: false
-#| title: Site Last Pulled
-#| content: valuebox
-list(
-    icon = "clock-history",
-    color = "vb-green",
-    value = site_pull_str("Baylor College of Medicine - BT House Calls")
-)
-```
-
 <!-- Started screening is defined as a response for any of the screening items (Yes, No or Unable to assess) without considering any branching logic questions. -->
 
 ```{r}
@@ -1083,17 +1116,6 @@ em_type_sus_em_dt(baylor_sus_type_em_table_data)
 
 ## Row {height= "5%" .fill}
 
-```{r}
-#| echo: false
-#| title: Site Last Pulled
-#| content: valuebox
-list(
-    icon = "clock-history",
-    color = "vb-green",
-    value = site_pull_str("Johns Hopkins - JHOME")
-)
-```
-
 <!-- Started screening is defined as a response for any of the screening items (Yes, No or Unable to assess) without considering any branching logic questions. -->
 
 ```{r}
@@ -1383,17 +1405,6 @@ em_type_sus_em_dt(jh_sus_type_em_table_data)
 
 ## Row {height= "5%" .fill}
 
-```{r}
-#| echo: false
-#| title: Site Last Pulled
-#| content: valuebox
-list(
-    icon = "clock-history",
-    color = "vb-green",
-    value = site_pull_str("UCSF - Care at Home Program")
-)
-```
-
 <!-- Started screening is defined as a response for any of the screening items (Yes, No or Unable to assess) without considering any branching logic questions. -->
 
 ```{r}
@@ -1681,17 +1692,6 @@ em_type_sus_em_dt(ucsf_sus_type_em_table_data)
 # UAB
 
 ## Row {height= "5%" .fill}
-
-```{r}
-#| echo: false
-#| title: Site Last Pulled
-#| content: valuebox
-list(
-    icon = "clock-history",
-    color = "vb-green",
-    value = site_pull_str("University of Alabama - UAB House Calls")
-)
-```
 
 <!-- Started screening is defined as a response for any of the screening items (Yes, No or Unable to assess) without considering any branching logic questions. -->
 
@@ -1981,17 +1981,6 @@ em_type_sus_em_dt(uab_sus_type_em_table_data)
 
 ## Row {height= "5%" .fill}
 
-```{r}
-#| echo: false
-#| title: Site Last Pulled
-#| content: valuebox
-list(
-    icon = "clock-history",
-    color = "vb-green",
-    value = site_pull_str("UT Southwestern - COVE")
-)
-```
-
 <!-- Started screening is defined as a response for any of the screening items (Yes, No or Unable to assess) without considering any branching logic questions. -->
 
 ```{r}
@@ -2280,17 +2269,6 @@ em_type_sus_em_dt(utsw_sus_type_em_table_data)
 
 ## Row {height= "5%" .fill}
 
-```{r}
-#| echo: false
-#| title: Site Last Pulled
-#| content: valuebox
-list(
-    icon = "clock-history",
-    color = "vb-green",
-    value = site_pull_str("UTH Houston - LBJ House Calls")
-)
-```
-
 <!-- Started screening is defined as a response for any of the screening items (Yes, No or Unable to assess) without considering any branching logic questions. -->
 
 ```{r}
@@ -2578,17 +2556,6 @@ em_type_sus_em_dt(lbj_sus_type_em_table_data)
 # UTP
 
 ## Row {height= "5%" .fill}
-
-```{r}
-#| echo: false
-#| title: Site Last Pulled
-#| content: valuebox
-list(
-    icon = "clock-history",
-    color = "vb-green",
-    value = site_pull_str("UTH Houston - UT Physicians House Calls")
-)
-```
 
 <!-- Started screening is defined as a response for any of the screening items (Yes, No or Unable to assess) without considering any branching logic questions. -->
 

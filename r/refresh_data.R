@@ -1,15 +1,18 @@
 # Refresh all dashboard data.
 #
-# Runs the three data-prep documents in dependency order without rendering
-# them, so no HTML or _files/ bundles are produced. Each document is executed
-# for its side effects: it writes the .RDS / .RData files the dashboards read.
+# Runs the data-prep steps in dependency order without rendering them, so no
+# HTML or _files/ bundles are produced. Each step is executed for its side
+# effects: it writes the .RDS / .RData files the dashboards read. The first
+# step reshapes a local EMR/UTP Excel export (if present) so the three prep
+# documents can clean it alongside the REDCap data in one pass.
 #
 #   Rscript r/refresh_data.R
 #
 # Run from the repository root. After each step the expected outputs are
 # checked and must have been written during this run -- if an upstream step
 # fails, the script stops rather than letting a downstream step build on
-# stale inputs.
+# stale inputs. A step may declare `skip_if` to opt out cleanly (e.g. the EMR
+# reshape when no local export is present).
 #
 # Note: knitr::purl() extracts every code chunk, including any marked
 # `eval: false`. If such a chunk is ever added to a prep document, exclude it
@@ -25,6 +28,25 @@ if (!file.exists(".here") && !file.exists("_quarto.yml")) {
 # Each step lists the files it must produce. Outputs marked `required = FALSE`
 # may legitimately be left untouched -- see the GO-UTHealth note on step 1.
 steps <- list(
+  list(
+    label = "DETECT tool - reshape local EMR/UTP export (optional)",
+    script = file.path("data_management", "detect_tool",
+                       "reshape_pulled_emr_data.R"),
+    # Only runs when a local EMR export (EMR_data_YYYY-MM-DD.xlsx) is present.
+    # When absent, the refresh proceeds with REDCap data only; any existing
+    # detect_tool_excel_raw.RDS from a prior run is reused by data_01.
+    skip_if = function() {
+      length(list.files(
+        file.path("data", "detect_tool"),
+        pattern = "^EMR_data_[0-9]{4}[-_][0-9]{2}[-_][0-9]{2}\\.xlsx$"
+      )) == 0
+    },
+    outputs = list(
+      list(path = file.path("data", "detect_tool",
+                            "detect_tool_excel_raw.RDS"),
+           required = TRUE)
+    )
+  ),
   list(
     label = "DETECT tool - clean REDCap data + GO-UTHealth link traffic",
     qmd = file.path("data_management", "detect_tool",
@@ -80,6 +102,16 @@ run_qmd <- function(qmd) {
   invisible(NULL)
 }
 
+# Execute a plain .R prep step (e.g. the EMR reshape) in an isolated environment,
+# mirroring run_qmd so steps share the same file-based hand-off and isolation.
+run_script <- function(script) {
+  if (!file.exists(script)) {
+    stop("Missing prep script: ", script, call. = FALSE)
+  }
+  source(script, local = new.env(parent = globalenv()), echo = FALSE)
+  invisible(NULL)
+}
+
 # An output counts as refreshed only if it was written after the step began.
 # Checking existence alone would pass on a file left over from a previous run.
 check_outputs <- function(outputs, step_start, label) {
@@ -109,11 +141,17 @@ stale_outputs <- character()
 
 for (i in seq_along(steps)) {
   step <- steps[[i]]
+  src <- if (!is.null(step$qmd)) step$qmd else step$script
   message("\n[", i, "/", length(steps), "] ", step$label)
-  message("      ", step$qmd)
+  message("      ", src)
+
+  if (!is.null(step$skip_if) && isTRUE(step$skip_if())) {
+    message("      skipped (condition not met -- e.g. no local EMR export)")
+    next
+  }
 
   step_start <- Sys.time()
-  run_qmd(step$qmd)
+  if (!is.null(step$qmd)) run_qmd(step$qmd) else run_script(step$script)
   stale_outputs <- c(stale_outputs,
                      check_outputs(step$outputs, step_start, step$label))
 

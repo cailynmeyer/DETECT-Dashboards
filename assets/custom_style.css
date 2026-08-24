@@ -37,4 +37,17 @@ aside#bslib-sidebar-1.sidebar.html-fill-container.html-fill-item {
   background-color: #f3f3f3;
 }
 
+/* Per-tab "last pulled" row in the sidebar (muted metadata, not a metric tile) */
+.sidebar-pull {
+  margin-top: 0.75rem;
+}
+.sidebar-pull .pull-label {
+  color: #6c757d;
+  font-size: 0.8rem;
+}
+.sidebar-pull .pull-date {
+  color: #6c757d;
+  font-weight: 600;
+}
+
 
