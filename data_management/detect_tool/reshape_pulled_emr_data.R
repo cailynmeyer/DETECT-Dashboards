@@ -87,7 +87,15 @@ TS_FORMAT   <- NULL              # for UTP544 when START_TS_EPOCH = FALSE
 #   "notes" -> it's the free-text note. Move it to ri_reflection_notes and derive
 #              ri_reflection = "Yes" when a note is present, else "No".
 #   "flag"  -> it's the Yes/No. Keep as ri_reflection; leave ri_reflection_notes NA.
-REFLECTION_FIELD <- "notes"
+#
+# UTP778 ("REFLECTION") is the Yes/No flag, not the note: every one of its 153
+# values in the 2026-08-24 export is the single character "0", and no other
+# question on the sheet carries reflection free text. Read as "notes" it made
+# ri_reflection_notes = "0" for every UTP row and derived ri_reflection = "Yes"
+# (because "0" is a non-empty string), inflating the dashboard's textbox counts
+# by 153 phantom responses. The smartform does not collect the note text at all,
+# so ri_reflection_notes stays NA for these rows.
+REFLECTION_FIELD <- "flag"
 
 # --- 1. Read the long-format export + build detect_id ------------------------
 # Resolve the target tab (exact match, else prefix match) so we never read the
@@ -183,8 +191,8 @@ qnum_for <- c(
   ri_unmet_needs           = 531,  # Unmet needs
   ri_injuries              = 532,  # Unexplained injuries
   suspect_em               = 534,  # Suspect EM (yes/no)
-  ri_em_no_reason          = 535,   # Indicators observed but EM not suspected - reason
-  ri_em_reason             = NA,   # Suspect EM - reason
+  ri_em_no_reason          = 535,  # Indicators observed but EM not suspected - reason
+  ri_em_reason             = 536,  # Suspect EM - reason
   ri_em_type_1             = NA,   # Self-neglect suspected
   ri_em_type_2             = NA,   # Financial exploitation suspected
   ri_em_type_3             = NA,   # Emotional or psychological abuse suspected
@@ -194,17 +202,18 @@ qnum_for <- c(
   ri_em_type_7             = NA,   # Abandonment suspected
   ri_em_type_98            = NA,   # Other mistreatment type suspected
   ri_em_type_99            = NA,   # Don't know / not sure of mistreatment type
-  ri_em_type_other         = NA,   # Specific other mistreatment type (text)
-  ri_environment_un_reason = NA,   # Environment not assessed - reason
-  ri_caregiver_un_reason   = NA,   # Caregiver not assessed - reason
-  ri_caregiver_oth         = NA,   # Other reason caregiver not assessed (text)
+  ri_em_type_other         = 537,  # Specific other mistreatment type (text)
+  ri_em_hyperlink_clicked. = 538,  # em guidelines hyperlink was clicked 
+  ri_environment_un_reason = 523,  # Environment not assessed - reason
+  ri_caregiver_un_reason   = 525,  # Caregiver not assessed - reason
+  ri_caregiver_oth         = 526,  # Other reason caregiver not assessed (text)
   ri_patient_assess        = 533,  # Patient not assessed - reason
-  ri_report                = NA,   # Intend to report to APS (yes/no)
-  ri_aps_no_reason         = NA,   # No intention to report to APS - reason
-  ri_refer_svcs            = NA,   # Other service referral (yes/no)
-  ri_refer_svcs_specify    = NA,   # Specify other service (text)
+  ri_report                = 539,  # Intend to report to APS (yes/no)
+  ri_aps_no_reason         = 540,  # No intention to report to APS - reason
+  ri_refer_svcs            = 541,  # Other service referral (yes/no)
+  ri_refer_svcs_specify    = 542,  # Specify other service (text)
   ri_reflection            = 778,  # Have helpful details / reflection (see REFLECTION_FIELD)
-  ri_reflection_notes      = NA    # Brief note (text) -- leave NA if REFLECTION_FIELD = "notes"
+  ri_reflection_notes      = 779   # Brief note (text) -- leave NA if REFLECTION_FIELD = "notes"
 )
 
 crosswalk <- tibble::tibble(

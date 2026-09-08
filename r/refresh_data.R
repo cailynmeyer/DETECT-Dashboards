@@ -168,4 +168,8 @@ if (length(stale_outputs) > 0) {
           "GO-UTHealth API token was rejected.")
 }
 
-message("\nNext: quarto render")
+message("\nNext:\n",
+        "  Rscript data_management/aps_baseline/data_operations.R",
+        "   # refreshes the APS Baseline page\n",
+        "  quarto render",
+        "                                            # builds the whole site")
