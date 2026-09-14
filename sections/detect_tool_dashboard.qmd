@@ -82,6 +82,16 @@ site_pull_str <- function(label) {
     d <- site_pull_date(label)
     if (length(d) == 0 || all(is.na(d))) "—" else format(as.Date(d), "%Y-%m-%d")
 }
+
+# --- New-reflections banner (All tab) ----------------------------------------
+# Reflections first seen on the latest data refresh, from the ledger written by
+# r/update_reflection_ledger.R. No ledger, or no earlier refresh to compare
+# against, means no banner -- the page renders as it did before.
+source(here::here("r", "reflection_ledger.R"))
+reflection_new <- tryCatch(
+    ledger_summary(readRDS(reflection_ledger_path())),
+    error = function(e) ledger_summary(NULL)
+)
 ```
 
 <!-- Load functions -->
@@ -275,6 +285,24 @@ text_box_items <- c(
     "ri_refer_svcs_specify",
     "ri_reflection_notes"
 )
+```
+
+<!-- Yellow warning banner, shown only when the latest refresh brought in new reflections. When there are none this chunk writes nothing, and Quarto adds no row for it. -->
+
+```{r, echo=FALSE, results='asis'}
+if (reflection_new$n_new > 0) {
+    n <- reflection_new$n_new
+    cat(sprintf(
+        paste0('<div class="reflection-banner" role="alert">',
+               '<i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>',
+               '<span>As of %s: <strong>%d new %s</strong> %s been submitted for review since %s</span>',
+               '</div>'),
+        format(reflection_new$latest, "%Y-%m-%d"), n,
+        if (n == 1) "reflection" else "reflections",
+        if (n == 1) "has" else "have",
+        format(reflection_new$prev, "%Y-%m-%d")
+    ))
+}
 ```
 
 ## Row {height= "5%" .fill}

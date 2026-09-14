@@ -86,6 +86,15 @@ steps <- list(
                             "dashboard_prepped_data.RData"),
            required = TRUE)
     )
+  ),
+  list(
+    label = "DETECT tool - record new reflections (All-tab banner)",
+    script = file.path("r", "update_reflection_ledger.R"),
+    outputs = list(
+      list(path = file.path("data", "detect_tool",
+                            "reflection_ledger.RDS"),
+           required = TRUE)
+    )
   )
 )
 
