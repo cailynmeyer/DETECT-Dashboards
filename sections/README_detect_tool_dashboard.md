@@ -44,11 +44,13 @@ Both keys are required to refresh this dashboard. See [main README → API Keys]
    Rscript r/refresh_data.R
    ```
 
-   This runs the three prep documents in dependency order:
+   This runs these steps in dependency order:
 
+   - `data_management/detect_tool/reshape_pulled_emr_data.R` — *(optional)* reshapes the newest local UTP EMR export (`data/detect_tool/EMR_data_YYYY-MM-DD.xlsx`); skipped if none is present. Writes `data/detect_tool/detect_tool_excel_raw.RDS`.
    - `data_management/detect_tool/data_01_detect_tool.qmd` — pulls raw REDCap + GO UTHealth data and cleans it. Writes `data/detect_tool/detect_tool_cleaned.RDS` and `detect_tool_link_hits.RDS`.
    - `data_management/aps_reports/data_01_aps_reports.qmd` — pulls the APS reports data that `data_02` depends on. Writes `data/aps_reports/aps_reports_cleaned.RDS`.
    - `data_management/detect_tool/data_02_detect_tool.qmd` — further preparation for dashboard summaries (**reads the APS reports output from the previous step**). Writes `data/detect_tool/dashboard_prepped_data.RData`.
+   - `r/update_reflection_ledger.R` — records newly seen reflections for the All-tab "new reflections" banner. Writes `data/detect_tool/reflection_ledger.RDS`.
 
    After each step the script checks that the expected outputs were actually rewritten during this run, and stops if one wasn't — so a failed pull can't leave a later step building on stale data.
 

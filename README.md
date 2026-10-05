@@ -155,6 +155,18 @@ A password box will appear for you to input the API token value.
 
 The whole site renders together — every page in the `render:` list of `_quarto.yml`. Before rendering, refresh each dashboard's data.
 
+### Quick Reference
+
+```shell
+# from repo root; optional: add newest UTP export to data/detect_tool/EMR_data_YYYY-MM-DD.xlsx
+Rscript r/refresh_data.R                                # DETECT Tool data + reflection ledger
+Rscript data_management/aps_baseline/data_operations.R  # APS Baseline data
+Rscript r/export_reflection_notes.R                     # -> data/detect_tool/reflection_notes_<date>.xlsx
+quarto render                                           # preview: _site/index.html
+git add . && git commit -m "YYYY-MM-DD Dashboard Update" && git push
+quarto publish gh-pages
+```
+
 ### Step 1: Refresh the Data
 
 Each dashboard has its own prep pipeline. Run both from the **repo root**:
@@ -165,7 +177,7 @@ Rscript r/refresh_data.R                                # DETECT Tool
 Rscript data_management/aps_baseline/data_operations.R  # APS Baseline
 ```
 
-- **DETECT Tool** — `r/refresh_data.R` runs the three prep documents in dependency order (`detect_tool/data_01` → `aps_reports/data_01` → `detect_tool/data_02`, since `data_02` reads the APS reports output). After each step it verifies the expected `.RDS`/`.RData` files were actually rewritten, and stops rather than letting a later step build on stale input. See the [DETECT Tool README](sections/README_detect_tool_dashboard.md).
+- **DETECT Tool** — `r/refresh_data.R` runs, in order: the optional UTP EMR reshape (newest `data/detect_tool/EMR_data_YYYY-MM-DD.xlsx`), `detect_tool/data_01` → `aps_reports/data_01` → `detect_tool/data_02` (`data_02` reads the APS reports output), then the reflection ledger update for the All-tab "new reflections" banner. After each step it verifies the expected `.RDS`/`.RData` files were actually rewritten, and stops rather than letting a later step build on stale input. See the [DETECT Tool README](sections/README_detect_tool_dashboard.md).
 - **APS Baseline** — pulls from REDCap and writes `data/aps_baseline/APS-DATA.duckdb`. See the [APS Baseline README](sections/README_aps_baseline_dashboard.md).
 
 You may be prompted for your computer's password so `keyring` can release the API tokens.
