@@ -475,6 +475,7 @@ list(
 ```{r}
 #| echo: false
 #| label: subs_over_time
+#| warning: false
 #| title: Screening Status Over Time (in Weeks)
 
 # data wrangling
@@ -482,31 +483,47 @@ screenings_completion_data = dt_data |>
     select(record_id, ri_timestamp_start, reporting_instrument_complete) |>
     mutate(
         ri_timestamp_start = lubridate::as_date(ri_timestamp_start),
-        ri_timestamp_start_week = lubridate::epiweek(ri_timestamp_start)
+        # Sunday that starts each week (same Sun-Sat weeks as CDC epiweek,
+        # but keeps the year so weeks from different years don't overlap)
+        ri_timestamp_start_week = lubridate::floor_date(
+            ri_timestamp_start,
+            unit = "week",
+            week_start = 7
+        )
     ) |>
-    count(reporting_instrument_complete, ri_timestamp_start_week)
+    count(reporting_instrument_complete, ri_timestamp_start_week) |>
+    mutate(
+        hover_text = paste0(
+            "Week of ", format(ri_timestamp_start_week, "%b %d, %Y"),
+            "<br>Status: ", reporting_instrument_complete,
+            "<br>Submissions: ", n
+        )
+    )
 
 screenings_completion_plot = ggplot(
     screenings_completion_data,
     aes(
         x = ri_timestamp_start_week,
         y = n,
-        color = reporting_instrument_complete
+        color = reporting_instrument_complete,
+        group = reporting_instrument_complete
     )
 ) +
-    geom_point() +
+    geom_point(aes(text = hover_text)) +
     scale_color_manual(
         values = c("Complete" = "#219ebc", "Incomplete" = "#023047")
     ) +
     geom_line() +
-    xlab("Epidemiologic Week Number (CDC)") +
+    scale_x_date(date_breaks = "1 month", date_labels = "%b %Y") +
+    xlab(NULL) +
     ylab("Number of Submissions") +
     labs(color = "Screening Status") +
-    theme_classic()
+    theme_classic() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 screenings_completion_plot = ggplotly(
     screenings_completion_plot,
-    tooltip = c("reporting_instrument_complete", "n", "ri_timestamp_start_week")
+    tooltip = "text"
 )
 
 screenings_completion_plot

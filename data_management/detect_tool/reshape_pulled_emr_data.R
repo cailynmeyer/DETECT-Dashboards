@@ -15,7 +15,7 @@
 #   MRN     : medical record number -> ri_patient_mrn (unique-patient count + APS linkage)
 #   dttm    : per-row documentation SUBMISSION datetime -> date + reporting timestamp
 #   c       : question number (e.g. "UTP544"); UTP544 = documentation START time
-#             as a 10-digit Unix epoch -> ri_timestamp_start (metadata, not clinical)
+#             as Epic seconds since 1840-12-31 -> ri_timestamp_start (metadata, not clinical)
 #   name    : question text
 #   value   : response value
 #
@@ -72,8 +72,10 @@ COL_VALUE      <- "value"        # response-value column
 
 # Documentation START time question (metadata, NOT clinical -- keep out of qnum_for):
 QNUM_TS_START  <- 544            # 'c' UTP544 = start time
-START_TS_EPOCH <- TRUE           # TRUE: UTP544 value is a 10-digit Unix epoch (seconds).
+START_TS_EPOCH <- TRUE           # TRUE: UTP544 value is a count of seconds since START_TS_ORIGIN.
                                  #   FALSE: parse it as text with TS_FORMAT instead.
+START_TS_ORIGIN <- "1840-12-31"  # Epic "instant" epoch (seconds since 12/31/1840), NOT the
+                                 #   Unix 1970-01-01 epoch -- using 1970 shifts dates +129 yrs.
 
 # Parse overrides (leave NULL unless a parse below yields NAs):
 DTTM_FORMAT <- NULL              # for 'dttm'; NULL uses "%Y-%m-%d %H:%M:%S" (handles the
@@ -131,7 +133,7 @@ parse_dttm <- function(x) {
   as.POSIXct(x, format = fmt, tz = "UTC")
 }
 parse_start_ts <- function(x) {
-  if (START_TS_EPOCH)      as.POSIXct(as.numeric(x), origin = "1970-01-01", tz = "UTC")
+  if (START_TS_EPOCH)      as.POSIXct(as.numeric(x), origin = START_TS_ORIGIN, tz = "UTC")
   else if (!is.null(TS_FORMAT)) as.POSIXct(as.character(x), format = TS_FORMAT, tz = "UTC")
   else                     as.POSIXct(as.character(x), tz = "UTC")
 }
